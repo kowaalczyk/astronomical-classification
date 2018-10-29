@@ -7,7 +7,7 @@ kaggle competitions download -c PLAsTiCC-2018 -p data
 
 echo "Unzipping..."
 
-pushd data
-unzip *.zip
+pushd data/raw
+unzip '*.zip'
 rm -rf *.zip
 popd
