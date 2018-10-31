@@ -8,6 +8,8 @@ import pandas as pd
 from plasticc.dataset import batch_data as batch_data_func
 from plasticc.dataset import Dataset, build_dataset_structure
 from plasticc.features import simple
+import plasticc.train_xgb as train_xgb
+import plasticc.metrics as metrics
 
 
 @click.command()
@@ -72,3 +74,38 @@ def featurize_simple(base_dataset_path, out_dataset_path, process_test):
     print("Generating features...")
     simple.from_base(base_dataset, out_dataset_path, process_test=process_test)
     print("Done.")
+
+
+@click.command()
+@click.option('--dataset_path', help="Dataset to be trained", required=True)
+@click.option('--output_path', help="Model output", required=True)
+@click.option('--calc_score', help="Should I calculate score", default=True)
+@click.option('--cv_scoring', help="Scoring algorithm", default="f1_macro")
+@click.option('--cv_splits', help="Number of CV splits", default=5)
+@click.option('--cv_test_size', help="Size of CV test part", default=0.2)
+@click.option('--xgb_max_depth', help="XGB max depth", default=7)
+@click.option('--xgb_lr', help="XGB learning rate", default=0.1)
+def perform_xgboost(
+        dataset_path: str,
+        output_path: str,
+        calc_score: bool,
+        cv_scoring: str,
+        cv_splits: int,
+        cv_test_size: float,
+        xgb_max_depth: int,
+        xgb_lr: float,
+):
+
+    xgb_args = {"max_depth": xgb_max_depth,
+                "learning_rate": xgb_lr}
+    if calc_score:
+        print("Calculating score...")
+        cv_args = {"n_splits": cv_splits,
+                   "test_size": cv_test_size,
+                   "random_state": 2137}
+        scores = metrics.xgb_score(dataset_path, cv_args, xgb_args, cv_scoring)
+        print("Scores: ", scores)
+
+    print("Starting training...")
+    train_xgb.train(dataset_path, output_path, xgb_args)
+    print("Successfully trained. dumped results into ", output_path)
