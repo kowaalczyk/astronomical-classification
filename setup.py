@@ -6,7 +6,8 @@ setup(
     packages=['plasticc'],
     entry_points={
         'console_scripts': [
-            'plasticc-batch-data = plasticc.scripts:batch_data'
+            'plasticc-dataset-base = plasticc.scripts:create_base_dataset',
+            'plasticc-dataset-simple = plasticc.scripts:featurize_simple'
         ]
     }
 )
