@@ -42,11 +42,15 @@ class Dataset(object):
 
     @property
     def train_meta_df(self) -> pd.DataFrame:
-        return pd.read_csv(self.meta_path('train.csv'))
+        df = pd.read_csv(self.meta_path('train.csv'))
+        df.index = df['object_id']
+        return df
  
     @property
     def test_meta_df(self) -> pd.DataFrame:
-        return pd.read_csv(self.meta_path('test.csv'))
+        df = pd.read_csv(self.meta_path('test.csv'))
+        df.index = df['object_id']
+        return df
 
     @property
     def train_path(self) -> str:
@@ -59,7 +63,7 @@ class Dataset(object):
     @property
     def test_paths(self) -> List[str]:
         test_file_names = sorted(os.listdir(self.test_path))
-        test_file_paths = [os.path.join(self.test_path, f) for f in test_file_name]
+        test_file_paths = [os.path.join(self.test_path, f) for f in test_file_names]
         return test_file_paths
 
     @property
@@ -67,7 +71,7 @@ class Dataset(object):
         return pd.read_csv(self.train_path)
 
     def iter_test_dfs(self):
-        for csv_name in self.test_paths:
+        for csv_name in tqdm(self.test_paths):
             yield pd.read_csv(csv_name)
 
 
@@ -89,24 +93,24 @@ def batch_data(
                 current_df = pd.concat([reminder_df, batch], axis=0)
             else:
                 current_df = batch
-            current_df.sort_values(by=['object_id', 'mjd', 'passband'], inplace=True)
+            current_df.sort_values(by=['object_id', 'passband', 'mjd'], inplace=True)
             # separate reminder for next iteration and save current batch
             last_id = current_df.iloc[-1]['object_id']
             reminder_df = current_df[current_df['object_id'] == last_id]
             save_df = current_df[current_df['object_id'] != last_id]
-            _save_batch(save_df, output_dir)
+            save_batch(save_df, output_dir)
             progressbar.update(len(save_df))
         # save last reminder
         if len(reminder_df) > 0:
-            _save_batch(reminder_df, output_dir)
+            save_batch(reminder_df, output_dir)
             progressbar.update(len(reminder_df))
 
 
-def _save_batch(batch: pd.DataFrame, output_dir: str):
+def save_batch(batch: pd.DataFrame, output_dir: str):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     save_filename = _name_for_batch(batch)
-    batch.to_csv(os.path.join(output_dir, save_filename))
+    batch.to_csv(os.path.join(output_dir, save_filename), index=False)
 
 
 def _name_for_batch(batch: pd.DataFrame, pad_to_length=12) -> str:
