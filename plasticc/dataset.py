@@ -1,4 +1,5 @@
 import os
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -17,14 +18,14 @@ class Dataset(object):
     (= metadata is in separate CSVs like in the raw data),
     the class provides access to metadata CSVs.
     """
-    def __init__(self, path):
+    def __init__(self, path: str):
         self.path = path
 
     def has_meta(self):
         return os.path.exists(os.path.join(self.path, 'meta/'))
 
     @classmethod
-    def with_structure(dataset_class, path, has_meta=False):
+    def with_structure(dataset_class, path: str, has_meta=False):
         """
         Creates an empty dataset directory structure in provided path and 
         returns a dataset wrapper for this path.
@@ -35,32 +36,32 @@ class Dataset(object):
         return dataset_class(path)
 
     @property
-    def meta_path(self, csv_name):
+    def meta_path(self, csv_name: str) -> str:
         if not self.has_meta():
             raise DatasetException("Dataset has no metadata!")
         return os.path.join(self.path, 'meta/', csv_name)
 
     @property
-    def train_meta_df(self):
+    def train_meta_df(self) -> pd.DataFrame:
         return pd.read_csv(self.meta_path('train.csv'))
  
     @property
-    def test_meta_df(self):
+    def test_meta_df(self) -> pd.DataFrame:
         return pd.read_csv(self.meta_path('test.csv'))
 
     @property
-    def train_path(self):
+    def train_path(self) -> str:
         return os.path.join(self.path, 'train.csv')
 
     @property
-    def test_paths(self):
+    def test_paths(self) -> List[str]:
         test_path = os.path.join(self.path, 'test/')
         test_file_names = sorted(os.listdir(test_path))
         test_file_paths = [os.path.join(test_path, f) for f in test_file_name]
         return test_file_paths
 
     @property
-    def train_df(self):
+    def train_df(self) -> pd.DataFrame:
         return pd.read_csv(self.train_path)
 
     def iter_test_dfs(self):
@@ -116,7 +117,7 @@ def _save_batch(batch: pd.DataFrame, output_dir: str):
     batch.to_csv(os.path.join(output_dir, save_filename))
 
 
-def _name_for_batch(batch: pd.DataFrame, pad_to_length=12):
+def _name_for_batch(batch: pd.DataFrame, pad_to_length=12) -> str:
     min_id_str = str(batch['object_id'].min()).zfill(pad_to_length)
     max_id_str = str(batch['object_id'].max()).zfill(pad_to_length)
     return f"test-batch-{min_id_str}-{max_id_str}.csv"
