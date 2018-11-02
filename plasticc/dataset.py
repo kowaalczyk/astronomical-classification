@@ -35,7 +35,6 @@ class Dataset(object):
             os.makedirs(os.path.join(path, 'meta/'))
         return dataset_class(path)
 
-    @property
     def meta_path(self, csv_name: str) -> str:
         if not self.has_meta():
             raise DatasetException("Dataset has no metadata!")
@@ -54,10 +53,13 @@ class Dataset(object):
         return os.path.join(self.path, 'train.csv')
 
     @property
+    def test_path(self) -> str:
+        return os.path.join(self.path, 'test/')
+
+    @property
     def test_paths(self) -> List[str]:
-        test_path = os.path.join(self.path, 'test/')
-        test_file_names = sorted(os.listdir(test_path))
-        test_file_paths = [os.path.join(test_path, f) for f in test_file_name]
+        test_file_names = sorted(os.listdir(self.test_path))
+        test_file_paths = [os.path.join(self.test_path, f) for f in test_file_name]
         return test_file_paths
 
     @property
@@ -71,27 +73,17 @@ class Dataset(object):
 
 def batch_data(
         ts_reader: pd.io.parsers.TextFileReader, 
-        meta_df: pd.DataFrame=None, 
         output_dir='../data/sets/base/test/', 
         lines=453653105
     ):
     """
     Splits pd.DataFrame iterated with ts_reader into batches.
     Each batch is saved as csv file in output_dir.
-    If meta_df is provided, each record in time series is joined 
-    with corresponding object's metadata (making the process ~3x slower).
     Lines argument is necessary for progressbar to work correctly.
     """
     reminder_df = pd.DataFrame()
     with tqdm(total=lines) as progressbar:
         for batch in ts_reader:
-            if meta_df is not None:
-                batch = batch.join(
-                    meta_df, 
-                    on='object_id', 
-                    rsuffix='meta_', 
-                    sort=True
-                )
             # prepend reminder of rows from previous iteration
             if len(reminder_df) > 0:
                 current_df = pd.concat([reminder_df, batch], axis=0)
