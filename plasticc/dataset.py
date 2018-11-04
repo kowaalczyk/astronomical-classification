@@ -35,7 +35,6 @@ class Dataset(object):
             os.makedirs(os.path.join(path, 'meta/'))
         return dataset_class(path)
 
-    @property
     def meta_path(self, csv_name: str) -> str:
         if not self.has_meta():
             raise DatasetException("Dataset has no metadata!")
@@ -43,21 +42,28 @@ class Dataset(object):
 
     @property
     def train_meta_df(self) -> pd.DataFrame:
-        return pd.read_csv(self.meta_path('train.csv'))
+        df = pd.read_csv(self.meta_path('train.csv'))
+        df.index = df['object_id']
+        return df
  
     @property
     def test_meta_df(self) -> pd.DataFrame:
-        return pd.read_csv(self.meta_path('test.csv'))
+        df = pd.read_csv(self.meta_path('test.csv'))
+        df.index = df['object_id']
+        return df
 
     @property
     def train_path(self) -> str:
         return os.path.join(self.path, 'train.csv')
 
     @property
+    def test_path(self) -> str:
+        return os.path.join(self.path, 'test/')
+
+    @property
     def test_paths(self) -> List[str]:
-        test_path = os.path.join(self.path, 'test/')
-        test_file_names = sorted(os.listdir(test_path))
-        test_file_paths = [os.path.join(test_path, f) for f in test_file_name]
+        test_file_names = sorted(os.listdir(self.test_path))
+        test_file_paths = [os.path.join(self.test_path, f) for f in test_file_names]
         return test_file_paths
 
     @property
@@ -65,56 +71,46 @@ class Dataset(object):
         return pd.read_csv(self.train_path)
 
     def iter_test_dfs(self):
-        for csv_name in self.test_paths:
+        for csv_name in tqdm(self.test_paths):
             yield pd.read_csv(csv_name)
 
 
 def batch_data(
         ts_reader: pd.io.parsers.TextFileReader, 
-        meta_df: pd.DataFrame=None, 
         output_dir='../data/sets/base/test/', 
         lines=453653105
     ):
     """
     Splits pd.DataFrame iterated with ts_reader into batches.
     Each batch is saved as csv file in output_dir.
-    If meta_df is provided, each record in time series is joined 
-    with corresponding object's metadata (making the process ~3x slower).
     Lines argument is necessary for progressbar to work correctly.
     """
     reminder_df = pd.DataFrame()
     with tqdm(total=lines) as progressbar:
         for batch in ts_reader:
-            if meta_df is not None:
-                batch = batch.join(
-                    meta_df, 
-                    on='object_id', 
-                    rsuffix='meta_', 
-                    sort=True
-                )
             # prepend reminder of rows from previous iteration
             if len(reminder_df) > 0:
                 current_df = pd.concat([reminder_df, batch], axis=0)
             else:
                 current_df = batch
-            current_df.sort_values(by=['object_id', 'mjd', 'passband'], inplace=True)
+            current_df.sort_values(by=['object_id', 'passband', 'mjd'], inplace=True)
             # separate reminder for next iteration and save current batch
             last_id = current_df.iloc[-1]['object_id']
             reminder_df = current_df[current_df['object_id'] == last_id]
             save_df = current_df[current_df['object_id'] != last_id]
-            _save_batch(save_df, output_dir)
+            save_batch(save_df, output_dir)
             progressbar.update(len(save_df))
         # save last reminder
         if len(reminder_df) > 0:
-            _save_batch(reminder_df, output_dir)
+            save_batch(reminder_df, output_dir)
             progressbar.update(len(reminder_df))
 
 
-def _save_batch(batch: pd.DataFrame, output_dir: str):
+def save_batch(batch: pd.DataFrame, output_dir: str):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     save_filename = _name_for_batch(batch)
-    batch.to_csv(os.path.join(output_dir, save_filename))
+    batch.to_csv(os.path.join(output_dir, save_filename), index=False)
 
 
 def _name_for_batch(batch: pd.DataFrame, pad_to_length=12) -> str:
