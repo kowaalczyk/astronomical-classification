@@ -49,18 +49,6 @@ class Dataset(object):
         test_file_names = sorted(os.listdir(self.test_path))
         test_file_paths = [os.path.join(self.test_path, f) for f in test_file_names]
         return test_file_paths
-
-    @property
-    def train_df(self) -> pd.DataFrame:
-        return pd.read_csv(self.train_path)
-
-    def iter_test_dfs(self):
-        for csv_name in tqdm(self.test_paths):
-            yield pd.read_csv(csv_name)
-
-
-def batch_data(
-        ts_reader: pd.io.parsers.TextFileReader, 
     
     @property
     def iter_test_dfs(self):
