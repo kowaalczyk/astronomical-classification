@@ -62,11 +62,9 @@ class Dataset(object):
             raise DatasetException("Dataset has no metadata!")
         return os.path.join(self.path, 'meta/', csv_name)
 
-    def train_meta_df(self, y=None):
+    def train_meta_df(self, y: str):
         if self._data is not None:
             raise DatasetException("This dataset has already set data!")
-        if y is None:
-            raise DatasetException("You have to specify y column name in dataset!")
         self._data = pd.read_csv(self.meta_path('train.csv'))
         self._data.index = self._data['object_id']
         if y not in self._data.columns:
@@ -83,11 +81,9 @@ class Dataset(object):
         self._X = self._data
         return self
 
-    def train_df(self, y=None):
+    def train_df(self, y: str):
         if self._data is not None:
             raise DatasetException("This dataset has already set data!")
-        if y is None:
-            raise DatasetException("You have to specify y column name in dataset!")
         self._data = pd.read_csv(self.train_path)
         self._data.index = self._data['object_id']
         if y not in self._data.columns:
