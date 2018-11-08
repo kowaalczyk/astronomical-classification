@@ -1,7 +1,6 @@
 import os
 from typing import List
 
-import numpy as np
 import pandas as pd
 from tqdm.autonotebook import tqdm
 
@@ -13,56 +12,56 @@ class Dataset(object):
     """
     Dataset wrapper for easier path management in scripts.
     Provides access to train set CSV and iteration over test set CSVs.
-    If dataset does not have denormalized metadata 
+    If dataset does not have denormalized metadata
     (= metadata is in separate CSVs like in the raw data),
     the class provides access to metadata CSVs.
     """
-    
+
     def __init__(self, path: str):
         self.path = path
         self._data = None
         self._X = None
         self._y = None
-        
+
     @property
     def values(self) -> pd.DataFrame:
         return self._data
-    
+
     @property
     def X(self) -> pd.DataFrame:
         return self._X
-    
+
     @property
     def y(self) -> pd.DataFrame:
         return self._y
-    
+
     @property
     def train_path(self) -> str:
         return os.path.join(self.path, 'train.csv')
-    
+
     @property
     def test_path(self) -> str:
         return os.path.join(self.path, 'test/')
-    
+
     @property
     def test_paths(self) -> List[str]:
         test_file_names = sorted(os.listdir(self.test_path))
         test_file_paths = [os.path.join(self.test_path, f) for f in test_file_names]
         return test_file_paths
-    
+
     @property
     def iter_test_dfs(self):
         for csv_name in tqdm(self.test_paths):
             yield Dataset(csv_name).train_df()
-    
+
     def has_meta(self):
         return os.path.exists(os.path.join(self.path, 'meta/'))
-    
+
     def meta_path(self, csv_name: str) -> str:
         if not self.has_meta():
             raise DatasetException("Dataset has no metadata!")
         return os.path.join(self.path, 'meta/', csv_name)
-    
+
     def train_meta_df(self, y=None):
         if self._data is not None:
             raise DatasetException("This dataset has already set data!")
@@ -70,20 +69,20 @@ class Dataset(object):
             raise DatasetException("You have to specify y column name in dataset!")
         self._data = pd.read_csv(self.meta_path('train.csv'))
         self._data.index = self._data['object_id']
-        if y not in _data.columns:
+        if y not in self._data.columns:
             raise DatasetException("Specified y column name does not exist in dataset!")
-        self._X = self._data.loc[:, data.columns != y]
-        self._y = self._data.loc[:, data.columns == y]
+        self._X = self._data.loc[:, self.data.columns != y]
+        self._y = self._data.loc[:, self.data.columns == y]
         return self
-    
+
     def test_meta_df(self) -> pd.DataFrame:
         if self._data is not None:
             raise DatasetException("This dataset has already set data!")
         self._data = pd.read_csv(self.meta_path('test.csv'))
         self._data.index = self._data['object_id']
-        self._X = self._data 
+        self._X = self._data
         return self
-    
+
     def train_df(self, y=None):
         if self._data is not None:
             raise DatasetException("This dataset has already set data!")
@@ -91,38 +90,38 @@ class Dataset(object):
             raise DatasetException("You have to specify y column name in dataset!")
         self._data = pd.read_csv(self.train_path)
         self._data.index = self._data['object_id']
-        if y not in _data.columns:
+        if y not in self._data.columns:
             raise DatasetException("Specified y column name does not exist in dataset!")
-        self._X = self._data.loc[:, data.columns != y]
-        self._y = self._data.loc[:, data.columns == y]
+        self._X = self._data.loc[:, self._data.columns != y]
+        self._y = self._data.loc[:, self._data.columns == y]
         return self
+
 
 class Dataset_manager(object):
     """
-    Static class creating a dataset directory structure and an instance 
+    Static class creating a dataset directory structure and an instance
     """
     @staticmethod
     def get_dataset_with_structure(path: str, has_meta=False):
         """
-        Creates an empty dataset directory structure in provided path and 
+        Creates an empty dataset directory structure in provided path and
         returns a Dataset for this path.
         """
         os.makedirs(os.path.join(path, 'test/'))
         if has_meta:
             os.makedirs(os.path.join(path, 'meta/'))
-        return Dataset(path)            
-            
+        return Dataset(path)
+
 
 def batch_data(
-        ts_reader: pd.io.parsers.TextFileReader, 
-        meta_df: pd.DataFrame=None, 
-        output_dir='../data/sets/base/test/', 
-        lines=453653105
-    ):
+        ts_reader: pd.io.parsers.TextFileReader,
+        meta_df: pd.DataFrame = None,
+        output_dir='../data/sets/base/test/',
+        lines=453653105):
     """
     Splits pd.DataFrame iterated with ts_reader into batches.
     Each batch is saved as csv file in output_dir.
-    If meta_df is provided, each record in time series is joined 
+    If meta_df is provided, each record in time series is joined
     with corresponding object's metadata (making the process ~3x slower).
     Lines argument is necessary for progressbar to work correctly.
     """
@@ -131,9 +130,9 @@ def batch_data(
         for batch in ts_reader:
             if meta_df is not None:
                 batch = batch.join(
-                    meta_df, 
-                    on='object_id', 
-                    rsuffix='meta_', 
+                    meta_df,
+                    on='object_id',
+                    rsuffix='meta_',
                     sort=True
                 )
             # prepend reminder of rows from previous iteration
