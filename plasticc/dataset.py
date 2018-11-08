@@ -8,6 +8,7 @@ from tqdm.autonotebook import tqdm
 class DatasetException(Exception):
     pass
 
+
 class Dataset(object):
     """
     Dataset wrapper for easier path management in scripts.
