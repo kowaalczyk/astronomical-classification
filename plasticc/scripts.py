@@ -110,9 +110,9 @@ def train_xgboost(
         cv_args = {"n_splits": cv_splits,
                    "test_size": cv_test_size,
                    "random_state": 2137}
-        scores = metrics.xgb_score(dataset_path, cv_args, xgb_args, cv_scoring)
+        scores = metrics.xgb_score(dataset, cv_args, xgb_args, cv_scoring)
         print("Scores: ", scores)
 
     print("Starting training...")
-    train_xgb.train(dataset_path, output_path, xgb_args)
+    train_xgb.train(dataset, output_path, xgb_args)
     print("Successfully trained. dumped results into ", output_path)
