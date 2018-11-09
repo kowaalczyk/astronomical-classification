@@ -80,15 +80,19 @@ def featurize_simple(base_dataset_path, out_dataset_path, process_test):
 @click.option('--dataset_path', help="Dataset to be trained", required=True)
 @click.option('--output_path', help="Model output", required=True)
 @click.option('--calc_score', help="Should I calculate score", default=True)
+@click.option('--use_meta', help="Is it meta dataset", default=False)
+@click.option('--target_col', help="Name of target column", default="target")
 @click.option('--cv_scoring', help="Scoring algorithm", default="f1_macro")
 @click.option('--cv_splits', help="Number of CV splits", default=5)
 @click.option('--cv_test_size', help="Size of CV test part", default=0.2)
 @click.option('--xgb_max_depth', help="XGB max depth", default=7)
 @click.option('--xgb_lr', help="XGB learning rate", default=0.1)
-def perform_xgboost(
+def train_xgboost(
         dataset_path: str,
         output_path: str,
         calc_score: bool,
+        use_meta: bool,
+        target_col: str,
         cv_scoring: str,
         cv_splits: int,
         cv_test_size: float,
@@ -98,6 +102,9 @@ def perform_xgboost(
 
     xgb_args = {"max_depth": xgb_max_depth,
                 "learning_rate": xgb_lr}
+
+    dataset = (Dataset.train_meta_df if use_meta else Dataset.train_df)(Dataset(dataset_path), target_col)
+
     if calc_score:
         print("Calculating score...")
         cv_args = {"n_splits": cv_splits,
