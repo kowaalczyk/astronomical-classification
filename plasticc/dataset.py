@@ -88,7 +88,7 @@ def build_dataset_structure(path: str, with_meta=False):
     returns a Dataset instance with this path.
     """
     os.makedirs(os.path.join(path, 'test/'))
-    if has_meta:
+    if with_meta:
         os.makedirs(os.path.join(path, 'meta/'))
     return Dataset(path)
 
