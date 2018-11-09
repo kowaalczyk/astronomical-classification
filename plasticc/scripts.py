@@ -84,7 +84,5 @@ def eval_model(model_path: str, dataset_path: str, output_path: str):
     print("Loading dataset...")
     data = Dataset(dataset_path).test_meta_df()
     print("Artifical contemplation...")
-    for d in data.iter_test_dfs():
-        print("* ", d.path, ":")
-        plasticc.prepare_submission(output_path, model, d)
+    plasticc.prepare_submission(output_path, model, data)
     print("Done.")
