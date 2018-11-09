@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Tuple
 
 import pandas as pd
 from tqdm.autonotebook import tqdm
@@ -12,102 +12,85 @@ class DatasetException(Exception):
 class Dataset(object):
     """
     Dataset wrapper for easier path management in scripts.
-    Provides access to train set CSV and iteration over test set CSVs.
-    If dataset does not have denormalized metadata
-    (= metadata is in separate CSVs like in the raw data),
-    the class provides access to metadata CSVs.
+    Provides access to training data if the y_column is passed on construction:
+        ds = Dataset('path/to/dataset/', y='colname')
+        X, y = ds.train  # pd.DataFrame, pd.Series
+    Provides access to test data:
+        ds = Dataset('path/to/dataset/')
+        for df in ds.iter_test:
+            df  # pd.DataFrame
+    If the dataset is denormalized (contains separated metadata):
+        - it is impossible to train or test
+        - ds.train_meta and ds.test_meta return pd.DataFrames with metadata
+    Dataset also exposes paths to train, test and metadata via its properties.
     """
-
-    def __init__(self, path: str):
+    def __init__(self, path: str, y_colname: str=None):
         self.path = path
-        self._data = None
-        self._X = None
-        self._y = None
+        self.y_colname = y_colname
 
     @property
-    def values(self) -> pd.DataFrame:
-        return self._data
+    def train(self) -> Tuple[pd.DataFrame, pd.Series]:
+        """ Returns X, y for the training set. """
+        if self.y_colname is None:
+            raise DatasetException("Specify y_colname before training")
+        if self.has_meta():
+            raise DatasetException("Dataset has metadata and is not intender for training")
+        train_df = pd.read_csv(self.train_path)
+        X_cols = [col for col in train_df.columns if not col == self.y_colname]
+        return train_df[X_cols], train_df[self.y_colname]
 
     @property
-    def X(self) -> pd.DataFrame:
-        return self._X
+    def iter_test(self):
+        """ Iterate over all of test set DataFrames. """
+        if self.has_meta():
+            raise DatasetException("Dataset has metadata and is not intender for predictions")
+        for csv_path in tqdm(self.test_paths):
+            yield pd.read_csv(csv_path)
 
     @property
-    def y(self) -> pd.DataFrame:
-        return self._y
+    def train_meta(self) -> pd.DataFrame:
+        return pd.read_csv(self.meta_path('train.csv'))
 
     @property
-    def train_path(self) -> str:
-        return os.path.join(self.path, 'train.csv')
-
-    @property
-    def test_path(self) -> str:
-        return os.path.join(self.path, 'test/')
-
-    @property
-    def test_paths(self) -> List[str]:
-        test_file_names = sorted(os.listdir(self.test_path))
-        test_file_paths = [os.path.join(self.test_path, f) for f in test_file_names]
-        return test_file_paths
-
-    @property
-    def iter_test_dfs(self):
-        for csv_name in tqdm(self.test_paths):
-            yield Dataset(csv_name).train_df()
+    def test_meta(self) -> pd.DataFrame:
+        return pd.read_csv(self.meta_path('test.csv'))
 
     def has_meta(self):
         return os.path.exists(os.path.join(self.path, 'meta/'))
 
+    @property
+    def train_path(self) -> str:
+        """ Path to train CSV """
+        return os.path.join(self.path, 'train.csv')
+
+    @property
+    def test_path(self) -> str:
+        """ Path to test directory. """
+        return os.path.join(self.path, 'test/')
+
+    @property
+    def test_paths(self) -> List[str]:
+        """ List of paths to all CSVs in test directory. """
+        test_file_names = sorted(os.listdir(self.test_path))
+        test_file_paths = [os.path.join(self.test_path, f) for f in test_file_names]
+        return test_file_paths
+
     def meta_path(self, csv_name: str) -> str:
+        """ Path to csv_name in metadata directory. """
         if not self.has_meta():
             raise DatasetException("Dataset has no metadata!")
         return os.path.join(self.path, 'meta/', csv_name)
 
-    def train_meta_df(self, y: str):
-        if self._data is not None:
-            raise DatasetException("This dataset has already set data!")
-        self._data = pd.read_csv(self.meta_path('train.csv'))
-        self._data.index = self._data['object_id']
-        if y not in self._data.columns:
-            raise DatasetException("Specified y column name does not exist in dataset!")
-        self._X = self._data.loc[:, self.data.columns != y]
-        self._y = self._data.loc[:, self.data.columns == y]
-        return self
 
-    def test_meta_df(self) -> pd.DataFrame:
-        if self._data is not None:
-            raise DatasetException("This dataset has already set data!")
-        self._data = pd.read_csv(self.meta_path('test.csv'))
-        self._data.index = self._data['object_id']
-        self._X = self._data
-        return self
-
-    def train_df(self, y: str):
-        if self._data is not None:
-            raise DatasetException("This dataset has already set data!")
-        self._data = pd.read_csv(self.train_path)
-        self._data.index = self._data['object_id']
-        if y not in self._data.columns:
-            raise DatasetException("Specified y column name does not exist in dataset!")
-        self._X = self._data.loc[:, self._data.columns != y]
-        self._y = self._data.loc[:, self._data.columns == y]
-        return self
-
-
-class Dataset_manager(object):
+def build_dataset_structure(path: str, with_meta=False):
     """
-    Static class creating a dataset directory structure and an instance
+    Creates an empty dataset directory structure in provided path and
+    returns a Dataset instance with this path.
     """
-    @staticmethod
-    def get_dataset_with_structure(path: str, has_meta=False):
-        """
-        Creates an empty dataset directory structure in provided path and
-        returns a Dataset for this path.
-        """
-        os.makedirs(os.path.join(path, 'test/'))
-        if has_meta:
-            os.makedirs(os.path.join(path, 'meta/'))
-        return Dataset(path)
+    os.makedirs(os.path.join(path, 'test/'))
+    if has_meta:
+        os.makedirs(os.path.join(path, 'meta/'))
+    return Dataset(path)
 
 
 def batch_data(
