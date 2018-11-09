@@ -6,7 +6,7 @@ import click
 import pandas as pd
 
 from plasticc.dataset import batch_data as batch_data_func
-from plasticc.dataset import Dataset
+from plasticc.dataset import Dataset, build_dataset_structure
 from plasticc import simple
 
 
@@ -20,9 +20,9 @@ from plasticc import simple
 @click.option('--test-batch-size', default=150000, 
         help='Number of rows in all of the test set batches')
 def create_base_dataset(raw_data_path, base_dataset_path, use_sample, test_batch_size):
-    out_dataset = Dataset.with_structure(
+    out_dataset = build_dataset_structure(
         base_dataset_path,
-        has_meta=True
+        with_meta=True
     )
     print('Copying CSVs...')
     shutil.copyfile(
