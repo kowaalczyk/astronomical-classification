@@ -115,4 +115,4 @@ def train_xgboost(
 
     print("Starting training...")
     train_xgb.train(dataset, output_path, xgb_args)
-    print("Successfully trained. dumped results into ", output_path)
+    print("Successfully trained. Dumped results into ", output_path)
