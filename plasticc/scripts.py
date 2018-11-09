@@ -65,7 +65,7 @@ def create_base_dataset(raw_data_path, base_dataset_path, use_sample, test_batch
 @click.option('--process-test/--ignore-test', default=True, 
         help='Adding flag --ignore-test will create an incomplete dataset without test data')
 def featurize_simple(base_dataset_path, out_dataset_path, process_test):
-    base_dataset = Dataset(base_dataset_path)
+    base_dataset = Dataset(base_dataset_path, "target")
     if not base_dataset.has_meta():
         print("Base dataset must have metadata.")
         exit(1)

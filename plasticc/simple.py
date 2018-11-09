@@ -4,21 +4,24 @@ from itertools import product
 
 import pandas as pd
 
-from plasticc.dataset import Dataset, save_batch
+from plasticc.dataset import Dataset, save_batch, build_dataset_structure
 
 
 def from_base(base_dataset: Dataset, out_dataset_path: str, process_test=True) -> Dataset:
     """
-    For each object in metadata, attach min, max and mean values 
+    For each object in metadata, attach min, max and mean values
     for each of the 6 passbands.
     Because we extract features from test time series, the set becomes smaller
     and we squash entire set into 1 DataFrame.
     """
-    out_dataset = Dataset.with_structure(out_dataset_path, has_meta=False)
+    out_dataset = build_dataset_structure(out_dataset_path, with_meta=False)
+    train_df, train_target = base_dataset.train()
+    train_meta_df = base_dataset.train_meta()
     train_out_df = _extract_features(
-        base_dataset.train_df, 
-        base_dataset.train_meta_df
+        train_df,
+        train_meta_df
     )
+    train_out_df[base_dataset.y_colname] = train_target
     train_out_df.to_csv(out_dataset.train_path, index=False)
     if process_test:
         test_meta_df = base_dataset.test_meta_df
