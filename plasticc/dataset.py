@@ -125,15 +125,15 @@ def batch_data(
             last_id = current_df.iloc[-1]['object_id']
             reminder_df = current_df[current_df['object_id'] == last_id]
             save_df = current_df[current_df['object_id'] != last_id]
-            _save_batch(save_df, output_dir)
+            save_batch(save_df, output_dir)
             progressbar.update(len(save_df))
         # save last reminder
         if len(reminder_df) > 0:
-            _save_batch(reminder_df, output_dir)
+            save_batch(reminder_df, output_dir)
             progressbar.update(len(reminder_df))
 
 
-def _save_batch(batch: pd.DataFrame, output_dir: str):
+def save_batch(batch: pd.DataFrame, output_dir: str):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     save_filename = _name_for_batch(batch)
