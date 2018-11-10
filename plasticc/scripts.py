@@ -7,7 +7,7 @@ import pandas as pd
 
 from plasticc.dataset import batch_data as batch_data_func
 from plasticc.dataset import Dataset, build_dataset_structure
-from plasticc import simple
+from plasticc.features import simple
 
 
 @click.command()
