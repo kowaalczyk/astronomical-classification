@@ -5,35 +5,49 @@ Working on submission for PLAsTiCC Astronomical Classification
 ```bash
 .
 ├── README.md
-.
 ├── data
 │   ├── raw
+│   │   ├── data_note.pdf
+│   │   ├── sample_submission.csv
+│   │   ├── test_set.csv
 │   │   ├── test_set_metadata.csv
 │   │   ├── test_set_sample.csv
 │   │   ├── training_set.csv
 │   │   └── training_set_metadata.csv
-│   └── sets
-│       └── sample  # example of a dataset - all datasets should keep same structure
+│   └── sets  # folder containing datasets, each set has the same structure
+│       ├── base
+│       │   ├── meta
+│       │   │   ├── test.csv
+│       │   │   └── train.csv
+│       │   ├── test
+│       │   │   ├── test-batch-000000000013-000000004507.csv
+│       │   │   ├── test-batch-000000004508-000000009115.csv
+│       │   │   ├── test-batch-000000009124-000000014058.csv
+│       │   │   ├── test-batch-000000014061-000000018862.csv
+│       │   │   ├── test-batch-000000018864-000000024106.csv
+│       │   │   ├── test-batch-000000024116-000000028875.csv
+│       │   │   ├── test-batch-000000028877-000000032293.csv
+│       │   │   └── test-batch-000000032300-000000032300.csv
+│       │   └── train.csv
+│       └── simple
 │           ├── test
-│           │   ├── test-batch-000000000013-000000004507.csv
-│           │   ├── test-batch-000000004508-000000009115.csv
-│           │   ├── test-batch-000000009124-000000014058.csv
-│           │   ├── test-batch-000000014061-000000018862.csv
-│           │   ├── test-batch-000000018864-000000024106.csv
-│           │   ├── test-batch-000000024116-000000028875.csv
-│           │   ├── test-batch-000000028877-000000032293.csv
-│           │   └── test-batch-000000032300-000000032300.csv
-│           └── train.csv  # unlike CSVs in raw data, datasets keep all data joined (metadata with time series if necessary)
+│           │   └── test-batch-000000000114-000000336300.csv
+│           └── train.csv
 ├── download-datasets.sh  # script downloading raw data from kaggle
 ├── notebooks  # visualisation & simple experiments are kept in notebooks here
 │   ├── Batch data.ipynb
-│   └── Exploratory.ipynb
-├── plasticc  # python package containing all scripts and modules that can be imported into notebooks
+│   ├── Exploratory.ipynb
+│   ├── Untitled.ipynb
+│   └── Untitled1.ipynb
+├── plasticc # python package containing all scripts and modules that can be imported into notebooks
 │   ├── __init__.py
 │   ├── dataset.py
+│   ├── features
+│   │   ├── __init__.py
+│   │   └── simple.py
 │   └── scripts.py
-├── requirements-dev.txt
-├── requirements.txt
+├── requirements-dev.txt  # requirements necessary for package development
+├── requirements.txt  # requirements necessary to run scripts
 └── setup.py  # build information for plasticc package
 ```
 
@@ -43,19 +57,16 @@ Working on submission for PLAsTiCC Astronomical Classification
 2. Install requirements: `pip install -r requirements.txt`  
 and dev requirements `pip install -r requirements-dev.txt`  
 3. Download datasets (~7GB, this may take very long): `bash download-datasets.sh`  
-4. Install `plasticc` package: `pip install -e .` or `python setup.py develop` 
-(neither version works on Windows, unfortunately). 
+4. Install `plasticc` package: `pip install -e .` or `python setup.py develop`  
 The package will be auto-reloaded so you only need to do this once.  
 
 After that, to recreate dataset structure described above (using test_set_sample.csv for local development):  
 ```bash
-mkdir data/sets/sample  
-# this might take some time:  
-plasticc-batch-data --input-csv data/raw/test_set_sample.csv --output-dir data/sets/sample/test/ --input-rows 1000001  
-cp data/raw/training_set.csv data/sets/sample/train.csv  
+# assuming env is active and plasticc installed
+plasticc-dataset-base --raw-data-path data/raw --base-dataset-path data/sets/base --use-sample
+# in order to use entire test set, not the 1M row sample use --use-full-test flag instead of --use-sample
+plasticc-dataset-simple --base-dataset-path data/sets/base --out-dataset-path data/sets/simple
 ```
-Note that this serves only demonstrational purposes - it does not make much sense 
-to create a dataset without any metadata (just the time series).
 
 ## Rules  
 

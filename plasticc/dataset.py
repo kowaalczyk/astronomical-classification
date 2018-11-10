@@ -19,9 +19,6 @@ class Dataset(object):
         ds = Dataset('path/to/dataset/')
         for df in ds.iter_test:
             df  # pd.DataFrame
-    If the dataset is denormalized (contains separated metadata):
-        - it is impossible to train or test
-        - ds.train_meta and ds.test_meta return pd.DataFrames with metadata
     Dataset also exposes paths to train, test and metadata via its properties.
     """
     def __init__(self, path: str, y_colname: str=None):
@@ -33,17 +30,17 @@ class Dataset(object):
         """ Returns X, y for the training set. """
         if self.y_colname is None:
             raise DatasetException("Specify y_colname before training")
-        if self.has_meta():
-            raise DatasetException("Dataset has metadata and is not intender for training")
         train_df = pd.read_csv(self.train_path)
         X_cols = [col for col in train_df.columns if not col == self.y_colname]
         return train_df[X_cols], train_df[self.y_colname]
 
     @property
+    def train_raw(self) -> pd.DataFrame:
+        return pd.read_csv(self.train_path)
+
+    @property
     def iter_test(self):
         """ Iterate over all of test set DataFrames. """
-        if self.has_meta():
-            raise DatasetException("Dataset has metadata and is not intender for predictions")
         for csv_path in tqdm(self.test_paths):
             yield pd.read_csv(csv_path)
 
