@@ -8,6 +8,6 @@ def load_model(model_path: str):
 
 
 def prepare_submission(output_path: str, model, inp: Dataset):
-    for d in inp.iter_test_dfs:
-        sub = pd.DataFrame(model.predict(d).X)
-        sub.to_csv(output_path + d.path, index=False)
+    for d in inp.iter_test:
+        sub = pd.DataFrame(model.predict(d))
+        sub.to_csv(output_path + inp.path, index=False)
