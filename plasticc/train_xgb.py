@@ -3,6 +3,7 @@ import pickle
 from plasticc.dataset import Dataset
 import math
 import numpy as np
+import pandas as pd
 
 def train(dataset: Dataset,
           output_path: str,
@@ -10,19 +11,14 @@ def train(dataset: Dataset,
           yname="target") -> XGBClassifier:
 
     X, y = dataset.train
-    X = X.values
-    y = y.values
 
     nans = []
-    for i in range(len(y)):
-        if math.isnan(y[i]) or np.isnan(y[i]):
+    for i in range(len(y.values)):
+        if math.isnan(y.values[i]) or np.isnan(y.values[i]):
             nans.append(i)
 
-
-    X = np.delete(X, nans, 0)
-    y = np.delete(y, nans, 0)
-
-
+    X.drop(nans, 0, inplace=True)
+    y.drop(nans, 0, inplace=True)
 
     model = XGBClassifier(**xgb_params)
     model.fit(X, y)
