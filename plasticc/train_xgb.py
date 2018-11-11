@@ -21,7 +21,7 @@ def train(dataset: Dataset,
     y.drop(nans, 0, inplace=True)
 
     model = XGBClassifier(**xgb_params)
-    model.fit(X, y)
+    model.fit(X.values, y.values)
 
     if output_path is not None:
         pickle.dump(model, open(output_path, "wb"))
