@@ -1,9 +1,9 @@
-from argparse import ArgumentParser
 import shutil
 import os
 
 import click
 import pandas as pd
+import numpy as np
 
 from plasticc.dataset import batch_data as batch_data_func
 from plasticc.dataset import Dataset, build_dataset_structure
@@ -80,7 +80,6 @@ def featurize_simple(base_dataset_path, out_dataset_path, process_test):
 @click.option('--dataset_path', help="Dataset to be trained", required=True)
 @click.option('--output_path', help="Model output", required=True)
 @click.option('--calc_score', help="Should I calculate score", default=True)
-@click.option('--use_meta', help="Is it meta dataset", default=False)
 @click.option('--target_col', help="Name of target column", default="target")
 @click.option('--cv_scoring', help="Scoring algorithm", default="f1_macro")
 @click.option('--cv_splits', help="Number of CV splits", default=5)
@@ -91,7 +90,6 @@ def train_xgboost(
         dataset_path: str,
         output_path: str,
         calc_score: bool,
-        use_meta: bool,
         target_col: str,
         cv_scoring: str,
         cv_splits: int,
@@ -101,9 +99,12 @@ def train_xgboost(
 ):
 
     xgb_args = {"max_depth": xgb_max_depth,
-                "learning_rate": xgb_lr}
+                "learning_rate": xgb_lr,
+                "missing": np.nan,
+                "error_score": "raise"
+               }
 
-    dataset = (Dataset.train_meta_df if use_meta else Dataset.train_df)(Dataset(dataset_path), target_col)
+    dataset = Dataset(dataset_path, target_col)
 
     if calc_score:
         print("Calculating score...")
