@@ -134,7 +134,7 @@ def save_batch(batch: pd.DataFrame, output_dir: str):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     save_filename = _name_for_batch(batch)
-    batch.to_csv(os.path.join(output_dir, save_filename))
+    batch.to_csv(os.path.join(output_dir, save_filename), index=False)
 
 
 def _name_for_batch(batch: pd.DataFrame, pad_to_length=12) -> str:
