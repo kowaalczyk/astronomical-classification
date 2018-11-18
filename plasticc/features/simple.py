@@ -46,5 +46,6 @@ def _extract_features(series_df: pd.DataFrame, meta_df: pd.DataFrame) -> pd.Data
     for passband, aggr_type, colname in product(passbands, aggr_dfs.keys(), result_column_names):
         out_colname = f'passband_{passband}_{aggr_type}_{colname}'
         train_features_df[out_colname] = aggr_dfs[aggr_type][colname].loc[passband]
+    meta_df.index = meta_df["object_id"]
     train_out_df = train_features_df.join(meta_df, rsuffix='_meta')
     return train_out_df
