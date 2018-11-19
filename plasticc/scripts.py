@@ -7,7 +7,7 @@ import pandas as pd
 from plasticc.dataset import batch_data as batch_data_func
 from plasticc.dataset import Dataset, build_dataset_structure
 from plasticc.features import simple
-import plasticc.plasticc as plasticc
+from plasticc import submission
 
 
 @click.command()
@@ -75,14 +75,14 @@ def featurize_simple(base_dataset_path, out_dataset_path, process_test):
 
 
 @click.command()
-@click.option("--model", "model_path", type=str, help="Saved model path", required=True)
-@click.option("--input", "dataset_path", type=str, help="Input path", required=True)
-@click.option("--output", "output_path", type=str, help="Output path", default="/dev/stdout")
+@click.option("--model", "model-path", type=str, help="Saved model path", required=True)
+@click.option("--input", "dataset-path", type=str, help="Input path", required=True)
+@click.option("--output", "output-path", type=str, help="Output path", default="/dev/stdout")
 def eval_model(model_path: str, dataset_path: str, output_path: str):
     print("Loading model...")
-    model = plasticc.load_model(model_path)
+    model = submission.load_model(model_path)
     print("Loading dataset...")
     data = Dataset(dataset_path)
     print("Artifical contemplation...")
-    plasticc.prepare_submission(output_path, model, data)
+    submission.prepare_submission(output_path, model, data)
     print("Done.")
