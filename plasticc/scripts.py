@@ -8,8 +8,8 @@ import numpy as np
 from plasticc.dataset import batch_data as batch_data_func
 from plasticc.dataset import Dataset, build_dataset_structure
 from plasticc.features import simple
-import plasticc.train_xgb as train_xgb
-import plasticc.metrics as metrics
+from plasticc import train_xgb
+from plasticc import metrics
 
 
 @click.command()
@@ -77,15 +77,15 @@ def featurize_simple(base_dataset_path, out_dataset_path, process_test):
 
 
 @click.command()
-@click.option('--dataset_path', help="Dataset to be trained", required=True)
-@click.option('--output_path', help="Model output", required=True)
-@click.option('--calc_score', help="Should I calculate score", default=True)
-@click.option('--target_col', help="Name of target column", default="target")
-@click.option('--cv_scoring', help="Scoring algorithm", default="f1_macro")
-@click.option('--cv_splits', help="Number of CV splits", default=5)
-@click.option('--cv_test_size', help="Size of CV test part", default=0.2)
-@click.option('--xgb_max_depth', help="XGB max depth", default=7)
-@click.option('--xgb_lr', help="XGB learning rate", default=0.1)
+@click.option('--dataset-path', help="Dataset to be trained", required=True)
+@click.option('--output-path', help="Model output", required=True)
+@click.option('--calc-score', help="Should I calculate score", default=True)
+@click.option('--target-col', help="Name of target column", default="target")
+@click.option('--cv-scoring', help="Scoring algorithm", default="f1_macro")
+@click.option('--cv-splits', help="Number of CV splits", default=5)
+@click.option('--cv-test-size', help="Size of CV test part", default=0.2)
+@click.option('--xgb-max-depth', help="XGB max depth", default=7)
+@click.option('--xgb-lr', help="XGB learning rate", default=0.1)
 def train_xgboost(
         dataset_path: str,
         output_path: str,
@@ -98,11 +98,12 @@ def train_xgboost(
         xgb_lr: float,
 ):
 
-    xgb_args = {"max_depth": xgb_max_depth,
-                "learning_rate": xgb_lr,
-                "missing": np.nan,
-                "error_score": "raise"
-               }
+    xgb_args = {
+        "max_depth": xgb_max_depth,
+        "learning_rate": xgb_lr,
+        "missing": np.nan,
+        "error_score": "raise"
+    }
 
     dataset = Dataset(dataset_path, target_col)
 

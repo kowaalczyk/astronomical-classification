@@ -11,17 +11,10 @@ def xgb_score(dataset: Dataset,
               scoring="f1_macro") -> np.ndarray:
 
     X, y = dataset.train
-    X = X.values
-    y = y.values
-    nans = []
-    for i in range(len(y)):
-        if math.isnan(y[i]) or np.isnan(y[i]):
-            nans.append(i)
 
-
-    X = np.delete(X, nans, 0)
-    y = np.delete(y, nans, 0)
-    print (y)
+    cons = X.join(y)
+    cons.dropna(inplace=True)
+    X, y = cons[cons.columns[:-1]], cons[cons.columns[-1]]
 
     model = XGBClassifier(**xgb_params)
     cv = ShuffleSplit(**cv_params)
