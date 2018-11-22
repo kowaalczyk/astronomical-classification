@@ -75,9 +75,9 @@ def featurize_simple(base_dataset_path, out_dataset_path, process_test):
 
 
 @click.command()
-@click.option("--model", "model-path", type=str, help="Saved model path", required=True)
-@click.option("--input", "dataset-path", type=str, help="Input path", required=True)
-@click.option("--output", "output-path", type=str, help="Output path", default="/dev/stdout")
+@click.option("--model", "model_path", type=str, help="Saved model path", required=True)
+@click.option("--input", "dataset_path", type=str, help="Input path", required=True)
+@click.option("--output", "output_path", type=str, help="Output path", default="/dev/stdout")
 def eval_model(model_path: str, dataset_path: str, output_path: str):
     print("Loading model...")
     model = submission.load_model(model_path)
