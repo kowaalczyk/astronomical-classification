@@ -8,7 +8,7 @@ setup(
         'console_scripts': [
             'plasticc-dataset-base = plasticc.scripts:create_base_dataset',
             'plasticc-dataset-simple = plasticc.scripts:featurize_simple',
-            'plasticc-xgb-run = plasticc.scripts:train_xgboost'
+            'plasticc-xgb-run = plasticc.scripts:train_xgboost',
             'plasticc-eval-model = plasticc.scripts:eval_model'
         ]
     }

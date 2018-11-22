@@ -9,10 +9,11 @@ def train(dataset: Dataset,
           yname="target") -> XGBClassifier:
 
     X, y = dataset.train
+#    X.dropna(inplace=True, axis=1)
 
-    cons = X.join(y)
-    cons.dropna(inplace=True)
-    X, y = cons[cons.columns[:-1]], cons[cons.columns[-1]]
+   # cons = X.join(y)
+   # cons.dropna(inplace=True)
+   # X, y = cons[cons.columns[:-1]], cons[cons.columns[-1]]
 
     model = XGBClassifier(**xgb_params)
     model.fit(X.values, y.values)
