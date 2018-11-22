@@ -10,6 +10,7 @@ from plasticc.dataset import Dataset, build_dataset_structure
 from plasticc.features import simple
 from plasticc import train_xgb
 from plasticc import metrics
+from plasticc import submission
 
 
 @click.command()
@@ -97,14 +98,12 @@ def train_xgboost(
         xgb_max_depth: int,
         xgb_lr: float,
 ):
-
     xgb_args = {
         "max_depth": xgb_max_depth,
         "learning_rate": xgb_lr,
         "missing": np.nan,
         "error_score": "raise"
     }
-
     dataset = Dataset(dataset_path, target_col)
 
     if calc_score:
@@ -118,3 +117,17 @@ def train_xgboost(
     print("Starting training...")
     train_xgb.train(dataset, output_path, xgb_args)
     print("Successfully trained. Dumped results into ", output_path)
+
+
+@click.command()
+@click.option("--model", "model_path", type=str, help="Saved model path", required=True)
+@click.option("--input", "dataset_path", type=str, help="Input path", required=True)
+@click.option("--output", "output_path", type=str, help="Output path", default="/dev/stdout")
+def eval_model(model_path: str, dataset_path: str, output_path: str):
+    print("Loading model...")
+    model = submission.load_model(model_path)
+    print("Loading dataset...")
+    data = Dataset(dataset_path)
+    print("Artifical contemplation...")
+    submission.prepare_submission(output_path, model, data)
+    print("Done.")
