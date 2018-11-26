@@ -7,7 +7,7 @@ import numpy as np
 
 from plasticc.dataset import batch_data as batch_data_func
 from plasticc.dataset import Dataset, build_dataset_structure
-from plasticc.features import simple
+from plasticc.features import simple, tsfresh
 from plasticc import train_xgb
 from plasticc import metrics
 from plasticc import submission
@@ -74,6 +74,23 @@ def featurize_simple(base_dataset_path, out_dataset_path, process_test):
         exit(1)
     print("Generating features...")
     simple.from_base(base_dataset, out_dataset_path, process_test=process_test)
+    print("Done.")
+
+    
+@click.command()
+@click.option('--base-dataset-path', type=str, 
+        help='Path to dataset that will be modified', required=True)
+@click.option('--out-dataset-path', type=str, 
+        help='Output directory path, will be created if necessary', required=True)
+@click.option('--process-test/--ignore-test', default=True, 
+        help='Adding flag --ignore-test will create an incomplete dataset without test data')
+def featurize_tsfresh(base_dataset_path, out_dataset_path, process_test):
+    base_dataset = Dataset(base_dataset_path, "target")
+    if not base_dataset.has_meta():
+        print("Base dataset must have metadata.")
+        exit(1)
+    print("Generating features...")
+    tsfresh.from_base(base_dataset, out_dataset_path, process_test=process_test)
     print("Done.")
 
 
