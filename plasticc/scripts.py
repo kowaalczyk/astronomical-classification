@@ -1,5 +1,6 @@
 import shutil
 import os
+import pickle
 
 import click
 import pandas as pd
@@ -82,15 +83,23 @@ def featurize_simple(base_dataset_path, out_dataset_path, process_test):
         help='Path to dataset that will be modified', required=True)
 @click.option('--out-dataset-path', type=str, 
         help='Output directory path, will be created if necessary', required=True)
+@click.option('--tsfresh-config-path', type=str, 
+        help='Path to tsfresh settings dict, if not provided it will extract all possible features', default=None)
 @click.option('--process-test/--ignore-test', default=True, 
         help='Adding flag --ignore-test will create an incomplete dataset without test data')
-def featurize_tsfresh(base_dataset_path, out_dataset_path, process_test):
+def featurize_tsfresh(base_dataset_path, out_dataset_path, tsfresh_config_path, process_test):
     base_dataset = Dataset(base_dataset_path, "target")
     if not base_dataset.has_meta():
         print("Base dataset must have metadata.")
         exit(1)
+    tsfresh_config = None
+    if tsfresh_config_path is None:
+        print("WARNING: All possible features will be extracted, this may take days or weeks")
+    else:
+        with open(tsfresh_config_path, 'rb') as file:
+            tsfresh_config = pickle.load(file)
     print("Generating features...")
-    tsfresh.from_base(base_dataset, out_dataset_path, process_test=process_test)
+    tsfresh.from_base(base_dataset, out_dataset_path, features_dict=tsfresh_config, process_test=process_test)
     print("Done.")
 
 
