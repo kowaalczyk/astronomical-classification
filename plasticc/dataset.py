@@ -21,36 +21,47 @@ class Dataset(object):
             df  # pd.DataFrame
     Dataset also exposes paths to train, test and metadata via its properties.
     """
-    def __init__(self, path: str, y_colname: str=None):
+    def __init__(self, path: str, y_colname: str=None, index_colname='object_id'):
         self.path = path
         self.y_colname = y_colname
+        self.index_colname = index_colname
 
     @property
     def train(self) -> Tuple[pd.DataFrame, pd.Series]:
         """ Returns X, y for the training set. """
         if self.y_colname is None:
             raise DatasetException("Specify y_colname before training")
-        train_df = pd.read_csv(self.train_path)
+        train_df = self.train_indexed
         X_cols = [col for col in train_df.columns if not col == self.y_colname]
-        return train_df[X_cols], train_df[self.y_colname]
+        return train_df[X_cols], train_df[self.y_colname].astype('category')
 
     @property
     def train_raw(self) -> pd.DataFrame:
         return pd.read_csv(self.train_path)
+    
+    @property
+    def train_indexed(self) -> pd.DataFrame:
+        return self.index(self.train_raw)
 
     @property
     def iter_test(self):
         """ Iterate over all of test set DataFrames. """
         for csv_path in tqdm(self.test_paths):
             yield pd.read_csv(csv_path)
+            
+    @property
+    def iter_indexed_test(self):
+        """ Iterate over all of test set DataFrames, with added indexes. """
+        for csv_path in tqdm(self.test_paths):
+            yield self.index(pd.read_csv(csv_path))
 
     @property
     def train_meta(self) -> pd.DataFrame:
-        return pd.read_csv(self.meta_path('train.csv'))
+        return self.index(pd.read_csv(self.meta_path('train.csv')))
 
     @property
     def test_meta(self) -> pd.DataFrame:
-        return pd.read_csv(self.meta_path('test.csv'))
+        return self.index(pd.read_csv(self.meta_path('test.csv')))
 
     def has_meta(self):
         return os.path.exists(os.path.join(self.path, 'meta/'))
@@ -77,6 +88,12 @@ class Dataset(object):
         if not self.has_meta():
             raise DatasetException("Dataset has no metadata!")
         return os.path.join(self.path, 'meta/', csv_name)
+
+    def index(self, df: pd.DataFrame, idx=None) -> pd.DataFrame:
+        if idx is None:
+            idx = self.index_colname
+        df.index = df[idx]
+        return df
 
 
 def build_dataset_structure(path: str, with_meta=False):
