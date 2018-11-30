@@ -1,4 +1,5 @@
 from sklearn.model_selection import ShuffleSplit, cross_val_score
+from sklearn.metrics import make_scorer
 from xgboost import XGBClassifier
 import numpy as np
 from plasticc.dataset import Dataset
@@ -23,9 +24,12 @@ def xgb_score(dataset: Dataset,
     return scores
 
 def kaggle_scoring():
+    """ Wrapping loss function for scikit learn """
     return make_scorer(score_func=kaggle_loss, greater_is_better=False)
 
 def kaggle_loss(y, y_pred, **kwargs):
+    """ Implemented multi log loss from kaggle competition """
+    #Analised weights for classes
     magic_const = 1.9188
     weight_dict = {
       "class_6": 1,
@@ -44,7 +48,22 @@ def kaggle_loss(y, y_pred, **kwargs):
       "class_95": 1,
       "class_99": 2,
     }
-    y_pred = np.maximum(np.minimum(y_pred,(np.ones(len(y_pred)*len(weight_dict))*(1-1e-15)).reshape(len(y_pred),len(weight_dict))),(1e-15))
-    return -np.sum(np.sum(np.nan_to_num(np.multiply(np.array(list(weight_dict.values())),np.multiply(y,np.log(y_pred))/np.array(np.sum(y, axis=0)))), axis=1)/sum(weight_dict.values())*magic_const)
-    #return -(np.sum(np.multiply(np.array(weight_dict.values()),np.multiply(y,np.log(y_pred))/np.array(np.sum(y, axis=0))), axis=1))/sum(weight_dict.values())*magic_const
-    
+
+    #evading log extremes
+    min_values = (np.ones(len(y_pred)*len(weight_dict))*(1-1e-15)).reshape(len(y_pred),len(weight_dict))
+    removed_ones = np.minimum(y_pred,min_values)
+    removed_zeros = np.maximum(np.minimum(y_pred,min_values), (1e-15))
+    y_pred = removed_zeros
+
+    #calculating loss
+    ln_p = np.log(y_pred)
+    N = np.array(np.sum(y, axis=0))
+    weights = np.array(list(weight_dict.values()))
+    multiplied_weights = np.multiply(weights,np.multiply(y,ln_p)/N)
+    #removing nan in case of not represented classes (in that case Ni equals 0 and we get division by zero)
+    nan_removed = np.nan_to_num(multiplied_weights)
+    sum_from_j_to_Ni = np.sum(nan_removed, axis=1)
+    sum_from_i_to_M = np.sum(sum_from_j_to_Ni)
+    numerator = sum_from_i_to_M
+    denominator = sum(weight_dict.values())*magic_const
+    return -numerator/denominator
