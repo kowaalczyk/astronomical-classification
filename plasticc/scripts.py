@@ -94,7 +94,10 @@ def featurize_tsfresh(base_dataset_path, out_dataset_path, tsfresh_config_path, 
         exit(1)
     tsfresh_config = None
     if tsfresh_config_path is None:
-        print("WARNING: All possible features will be extracted, this may take days or weeks")
+        tsfresh_config = {
+            'fft_coefficient': [{'coeff': 0, 'attr': 'abs'}, {'coeff': 1, 'attr': 'abs'}],
+            'kurtosis' : None,
+        }
     else:
         with open(tsfresh_config_path, 'rb') as file:
             tsfresh_config = pickle.load(file)
