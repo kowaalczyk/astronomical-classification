@@ -71,9 +71,6 @@ def kaggle_loss(y, y_pred, **kwargs):
     denominator = sum(weight_dict.values())*magic_const
     return -numerator/denominator
 
-def xgb_kaggle_loss(y_true, y_pred, **kwargs):
-    y_true = OneHotEncoder(sparse=False).fit_transform(y_true)
-    return kaggle_loss(y_true, y_pred, **kwargs)
 
 def wtf_xgb_kaggle_loss(y_pred, y_true, **kwargs):
     """ Implemented multi log loss from kaggle competition (XGBoost version) """
@@ -96,8 +93,8 @@ def wtf_xgb_kaggle_loss(y_pred, y_true, **kwargs):
       "class_95": 1,
      # "class_99": 2,
     }
-    y = y_true.get_label()
-    y = OneHotEncoder(sparse=False).fit_transform(labels.reshape(-1, 1))
+#     y = y_true.get_label()
+#     y = OneHotEncoder(sparse=False).fit_transform(labels.reshape(-1, 1))
 
     #evading log extremes
     min_values = (np.ones(len(y_pred)*len(weight_dict))*(1-1e-15)).reshape(len(y_pred),len(weight_dict))
@@ -105,15 +102,15 @@ def wtf_xgb_kaggle_loss(y_pred, y_true, **kwargs):
     removed_zeros = np.maximum(np.minimum(y_pred,min_values), (1e-15))
     y_pred = removed_zeros
 
-    #calculating loss
-    ln_p = np.log(y_pred)
-    N = np.array(np.sum(y, axis=0))
-    weights = np.array(list(weight_dict.values()))
-    multiplied_weights = np.multiply(weights,np.multiply(y,ln_p)/N)
-    #removing nan in case of not represented classes (in that case Ni equals 0 and we get division by zero)
-    nan_removed = np.nan_to_num(multiplied_weights)
-    sum_from_j_to_Ni = np.sum(nan_removed, axis=1)
-    sum_from_i_to_M = np.sum(sum_from_j_to_Ni)
-    numerator = sum_from_i_to_M
+    #calculating gradient
+    inverted_p = 1/y_pred
+    N = np.array(np.sum(y_true, axis=0))
+    weights = np.array(list(weight_dict.values()))*magic_const
     denominator = sum(weight_dict.values())*magic_const
-    return -numerator/denominator
+    gradient = -(np.multiply(np.sum(np.multiply(y_true, inverted_p), axis=0),weights)/N)/denominator
+    
+    #calculating hessian
+    inverted_p2 = -1/inverted_p
+    hessian = (np.multiply(np.sum(np.multiply(y_true, inverted_p2), axis=0),weights)/N)/denominator
+    
+    return  np.nan_to_num(gradient),  np.nan_to_num(hessian)
