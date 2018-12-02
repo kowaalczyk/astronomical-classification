@@ -52,7 +52,7 @@ def kaggle_loss(y, y_pred, **kwargs):
     #evading log extremes
     min_values = (np.ones(len(y_pred)*len(weight_dict))*(1-1e-15)).reshape(len(y_pred),len(weight_dict))
     removed_ones = np.minimum(y_pred,min_values)
-    removed_zeros = np.maximum(np.minimum(y_pred,min_values), (1e-15))
+    removed_zeros = np.maximum(removed_ones, (1e-15))
     y_pred = removed_zeros
 
     #calculating loss
