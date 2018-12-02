@@ -1,11 +1,16 @@
 import os
+import time
 from shutil import copyfile
 from itertools import product
+from multiprocessing import Pool
 
 import numpy as np
 import pandas as pd
 
 from plasticc.dataset import Dataset, save_batch, build_dataset_structure
+
+
+N_JOBS = 16
 
 
 simple_aggregations = {
@@ -25,32 +30,40 @@ def from_base(base_dataset: Dataset, out_dataset_path: str, process_test=True) -
     Because we extract features from test time series, the set becomes smaller
     and we squash entire test set back into 1 CSV.
     """
+    start_time = time.time()
     out_dataset = build_dataset_structure(out_dataset_path, with_meta=False)
-    train_out_df = _extract_features(
+    train_features_df = _extract_features(
         base_dataset.train_raw,
-        base_dataset.train_meta
     )
+    train_out_df = train_features_df.join(base_dataset.train_meta)
+    train_out_df.drop(columns=[col for col in set(train_out_df.columns) if col.endswith('_meta')], inplace=True)
     train_out_df.to_csv(out_dataset.train_path, index=False)
+    end_time = time.time()
     if process_test:
-        test_meta_df = base_dataset.test_meta
-        dfs = []  # entire test set will be concatenated into 1 dataframe
-        for test_series_df in base_dataset.iter_test:
-            dfs.append(_extract_features(
-                test_series_df,
-                test_meta_df
-            ))
-        test_out_df = pd.concat(dfs)
+        print('Processing test CSVs in parallel, there will be no progressbar available.')
+        print(f'Processing training set took {end_time-start_time} seconds,')
+        print(f'processing full test set should take about {350*(end_time-start_time)/(N_JOBS * 60)} minutes.')
+        with Pool(N_JOBS) as pool:
+            dfs = pool.map(_read_extract_features, base_dataset.test_paths)
+        print('Series processed, joining dataframes...')
+        test_features_df = pd.concat(dfs)
+        test_out_df = test_features_df.join(base_dataset.test_meta)
+        test_out_df.drop(columns=[col for col in set(test_out_df.columns) if col.endswith('_meta')], inplace=True)
         save_batch(test_out_df, output_dir=out_dataset.test_path)
     return out_dataset
 
 
-def _extract_features(series_df: pd.DataFrame, meta_df: pd.DataFrame) -> pd.DataFrame:
+def _read_extract_features(csv_path: str) -> pd.DataFrame:
+    df = pd.read_csv(csv_path)
+    return _extract_features(df)
+
+
+def _extract_features(series_df: pd.DataFrame) -> pd.DataFrame:
     series_df = _with_series_features(series_df)
     flat_aggr_df = _compute_aggregate_features(series_df)
     flat_aggr_df = _with_differential_features(flat_aggr_df)
     # TODO: Aggregating min, max, etc. across various passbands might be a good idea, implement it.
-    joined_df = flat_aggr_df.join(meta_df, rsuffix='_meta')
-    return joined_df.drop(columns=[col for col in set(joined_df.columns) if col.endswith('_meta')])
+    return flat_aggr_df
 
 
 def _with_series_features(series_df: pd.DataFrame) -> pd.DataFrame:

@@ -9,7 +9,7 @@ import numpy as np
 from plasticc.dataset import batch_data as batch_data_func
 from plasticc.dataset import Dataset, build_dataset_structure
 from plasticc.features import simple, tsfresh
-from plasticc import train_xgb
+# from plasticc import train_xgb
 from plasticc import metrics
 from plasticc import submission
 
