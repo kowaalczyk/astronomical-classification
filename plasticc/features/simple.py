@@ -1,3 +1,4 @@
+import gc
 import os
 import time
 from shutil import copyfile
@@ -30,8 +31,28 @@ def from_base(base_dataset: Dataset, out_dataset_path: str, process_test=True) -
     Because we extract features from test time series, the set becomes smaller
     and we squash entire test set back into 1 CSV.
     """
-    start_time = time.time()
+    gc.enable()
     out_dataset = build_dataset_structure(out_dataset_path, with_meta=False)
+    train_extraction_time = _process_train_set_count_time(base_dataset, out_dataset)
+    gc.collect()
+    if process_test:
+        print('Processing test CSVs in parallel, there will be no progressbar available.')
+        print(f'Processing training set took {train_extraction_time} seconds,')
+        print(f'processing full test set should take about {350*(train_extraction_time)/(N_JOBS * 60)} minutes.')
+        test_features_df = _process_test_features(base_dataset, out_dataset)
+        gc.collect()
+        test_out_df = test_features_df.join(base_dataset.test_meta)
+        test_out_df.drop(columns=[col for col in set(test_out_df.columns) if col.endswith('_meta')], inplace=True)
+        save_batch(test_out_df, output_dir=out_dataset.test_path)
+    return out_dataset
+
+
+def _process_train_set_count_time(base_dataset: Dataset, out_dataset: Dataset) -> float:
+    """ 
+    Generates features on the train part of the base_dataset, saves it to out_dataset.
+    Returns execution time in seconds.
+    """
+    start_time = time.time()
     train_features_df = _extract_features(
         base_dataset.train_raw,
     )
@@ -39,18 +60,15 @@ def from_base(base_dataset: Dataset, out_dataset_path: str, process_test=True) -
     train_out_df.drop(columns=[col for col in set(train_out_df.columns) if col.endswith('_meta')], inplace=True)
     train_out_df.to_csv(out_dataset.train_path, index=False)
     end_time = time.time()
-    if process_test:
-        print('Processing test CSVs in parallel, there will be no progressbar available.')
-        print(f'Processing training set took {end_time-start_time} seconds,')
-        print(f'processing full test set should take about {350*(end_time-start_time)/(N_JOBS * 60)} minutes.')
-        with Pool(N_JOBS) as pool:
+    return end_time - start_time
+
+
+def _process_test_features(base_dataset: Dataset, out_dataset: Dataset) -> pd.DataFrame:
+    """Processes test set in parallel and concatenates results into one DataFrame."""
+    with Pool(N_JOBS) as pool:
             dfs = pool.map(_read_extract_features, base_dataset.test_paths)
-        print('Series processed, joining dataframes...')
-        test_features_df = pd.concat(dfs)
-        test_out_df = test_features_df.join(base_dataset.test_meta)
-        test_out_df.drop(columns=[col for col in set(test_out_df.columns) if col.endswith('_meta')], inplace=True)
-        save_batch(test_out_df, output_dir=out_dataset.test_path)
-    return out_dataset
+    print('Series processed, joining dataframes...')
+    return pd.concat(dfs)
 
 
 def _read_extract_features(csv_path: str) -> pd.DataFrame:
