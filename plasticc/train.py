@@ -1,11 +1,17 @@
 import pickle
+from typing import List
 
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+import numpy as np
+import pandas as pd
+
+from plasticc.dataset import Dataset
 from xgboost import XGBClassifier
 from sklearn.ensemble import BaggingClassifier
 from sklearn.model_selection import train_test_split
 
 from plasticc.dataset import Dataset
-import numpy as np
 
 
 random_seed = 2222
@@ -23,8 +29,60 @@ def train_model(
     return model
 
 
-def build_xgb():
-    pass  # TODO
+def null_values(X: pd.DataFrame) -> List[str]:
+    print("Total columns:", len(X.columns))
+    na_cols = [col for col in X.columns if X[col].isna().any()]
+    print("Total NA columns: ", len(na_cols))
+    if len(na_cols) < 10:
+        print("NA values by column:")
+        print({na_col: X[na_col].isna().sum() for na_col in na_cols})
+    return na_cols
+
+
+def build_xgb(training_set: str):
+    if training_set == 'simple-2':
+        ds = Dataset('../data/sets/simple-12-01/', y_colname='target')
+    elif training_set == 'simple':
+        ds = Dataset('../data/sets/simple/', y_colname='target')
+    elif training_set == 'tsfresh':
+        ds = Dataset('../data/sets/tsfresh-sample/', y_colname='target')
+    else:
+        raise "No such dataset registered"
+
+    X, y = ds.train
+
+    X.fillna(0, inplace=True)
+    assert(X.notna().all().all())
+    X.drop(columns=[col for col in set(X.columns) if col.endswith('_meta')], inplace=True)
+
+    print("Before infinity removal:", X.shape)
+    X.replace([np.inf, -np.inf], np.nan, inplace=True)
+    na_cols = null_values(X)
+    X.drop(columns=na_cols, inplace=True)
+    print("After infinity removal:", X.shape)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, random_state=42)
+
+    xgb_model = XGBClassifier(
+        objective='multi:softmax',
+        num_class=14,
+        learning_rate=0.03,
+        subsample=0.9,
+        colsample_bytree=0.5,
+        reg_alpha=0.01,
+        reg_lambda=0.01,
+        min_child_weight=10,
+        n_estimators=1024,
+        max_depth=3,
+        nthread=16
+    )
+
+    xgb_model.fit(X_train, y_train, verbose=100, eval_set=[(X_train, y_train), (X_test, y_test)], eval_metric='mlogloss', early_stopping_rounds=50)
+
+    print(f"Score: {xgb_model.score(X_test, y_test)}")
+
+    return xgb_model
+
 
 
 def build_bagged_model(base_estimator):
