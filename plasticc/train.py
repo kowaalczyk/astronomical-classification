@@ -5,10 +5,9 @@ from xgboost import XGBClassifier
 import numpy as np
 import pandas as pd
 
-from plasticc.dataset import Dataset, MultiDataset
 from sklearn.ensemble import BaggingClassifier
 from sklearn.model_selection import train_test_split
-
+from plasticc.resolvers import resolve_dataset_name, resolve_model_name
 
 random_seed = 2222
 
@@ -44,29 +43,6 @@ def train_model(
     print("Done.")
     _save_model_if_path_not_none(model, output_path)
     return model
-
-
-def resolve_dataset_name(name):
-    if name == 'simple-2':
-        return Dataset('data/sets/simple-12-01/', y_colname='target')
-    elif name == 'simple':
-        return Dataset('data/sets/simple/', y_colname='target')
-    elif name == 'tsfresh':
-        return Dataset('data/sets/tsfresh-kaggle-sample/', y_colname='target')
-    elif name == 'tsfresh-simple':
-        return MultiDataset(['data/sets/tsfresh-kaggle-sample/', 'data/sets/simple-kaggle-sample'],
-                            y_colname='target')
-    else:
-        raise Exception("No such dataset registered")
-
-
-def resolve_model_name(name):
-    if name == "xgb":
-        return build_xgb()
-    elif name == "bagged_xgb":
-        return build_bagged_model(build_xgb)
-    else:
-        raise Exception(f"Unknown model: {name}")
 
 
 def null_values(X: pd.DataFrame) -> List[str]:

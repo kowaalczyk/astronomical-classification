@@ -107,6 +107,9 @@ def featurize_tsfresh(base_dataset_path, out_dataset_path, tsfresh_config_path, 
     print("Done.")
 
 
+"""
+Names for resolvers may be found in plasticc.resolvers
+"""
 @click.command()
 @click.option('--dataset-name', help="Dataset to be trained", required=True)
 @click.option('--output-path', help="Model output", required=True)
