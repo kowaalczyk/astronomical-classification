@@ -50,9 +50,9 @@ def resolve_dataset_name(name):
     elif name == 'simple':
         return Dataset('data/sets/simple/', y_colname='target')
     elif name == 'tsfresh':
-        return Dataset('data/sets/tsfresh-sample/', y_colname='target')
+        return Dataset('data/sets/tsfresh-kaggle-sample/', y_colname='target')
     elif name == 'tsfresh-simple':
-        return MultiDataset(['data/sets/tsfresh-sample/', 'data/sets/simple'],
+        return MultiDataset(['data/sets/tsfresh-kaggle-sample/', 'data/sets/simple-kaggle-sample'],
                             y_colname='target')
     else:
         raise "No such dataset registered"
