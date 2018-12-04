@@ -75,12 +75,15 @@ class Dataset(object):
     def test_path(self) -> str:
         """ Path to test directory. """
         return os.path.join(self.path, 'test/')
+    
+    @property
+    def test_filenames(self) -> List[str]:
+        return sorted(os.listdir(self.test_path))
 
     @property
     def test_paths(self) -> List[str]:
         """ List of paths to all CSVs in test directory. """
-        test_file_names = sorted(os.listdir(self.test_path))
-        test_file_paths = [os.path.join(self.test_path, f) for f in test_file_names]
+        test_file_paths = [os.path.join(self.test_path, f) for f in self.test_filenames]
         return test_file_paths
 
     def meta_path(self, csv_name: str) -> str:
@@ -94,6 +97,56 @@ class Dataset(object):
             idx = self.index_colname
         df.index = df[idx]
         return df
+
+
+class MultiDatasetException(Exception):
+    pass
+
+
+class MultiDataset(object):
+    """
+    Provides wrapper for reading multiple dataset folders as a single Dataset.
+    It also supports using a cleaning strategy - a custom function that will transfom train.X and test dataframes in the same way.
+    For now this is only intended to serve a train and predict interface,
+    we can easily extend it to implement full Dataset interface but this is not necessary right now.
+    """
+    def __init__(self, paths: List[str], y_colname: str=None, index_colname='object_id', cleaning_strategy=lambda x:x):
+        self.datasets = [Dataset(path, y_colname, index_colname) for path in paths]
+        self._clean = cleaning_strategy
+
+    @property
+    def train(self) -> Tuple[pd.DataFrame, pd.Series]:
+        base_X, base_y = self.datasets[0].train
+        other_Xs = [self._valid_train_X(other_ds, base_y) for other_ds in self.datasets[1:]]
+        joined_X = self._safe_join(base_X, other_Xs)
+        return self._clean(joined_X), base_y
+    
+    @property
+    def iter_test(self):
+        if not self._children_have_same_test_split():
+            raise MultiDatasetException("Internal datasets have differently aligned test CSVs")
+        for test_dfs in zip(*[ds.iter_test for ds in self.datasets]):
+            joined = self._safe_join(test_dfs[0], test_dfs[1:])
+            yield self._clean(joined)
+
+    def _children_have_same_test_split(self):
+        first_child_filenames = set(self.datasets[0].test_filenames)
+        for other_ds in self.datasets[1:]:
+            if not set(other_ds.test_filenames) == first_child_filenames:
+                return False
+        return True
+
+    def _valid_train_X(self, ds: Dataset, base_y: pd.Series) -> pd.DataFrame:
+        X, y = ds.train
+        if not (y == base_y).all():
+            raise MultiDatasetException("Internal datasets have different target series")
+        return X
+
+    def _safe_join(self, base_X: pd.DataFrame, other_Xs: List[pd.DataFrame]) -> pd.DataFrame:
+        for idx, X in enumerate(other_Xs):
+            X.drop(columns=[col for col in set(base_X.columns) & set(X.columns)], inplace=True)
+            base_X = base_X.join(X)
+        return base_X
 
 
 def build_dataset_structure(path: str, with_meta=False):
