@@ -55,7 +55,7 @@ def resolve_dataset_name(name):
         return MultiDataset(['data/sets/tsfresh-kaggle-sample/', 'data/sets/simple-kaggle-sample'],
                             y_colname='target')
     else:
-        raise "No such dataset registered"
+        raise Exception("No such dataset registered")
 
 
 def resolve_model_name(name):
@@ -64,7 +64,7 @@ def resolve_model_name(name):
     elif name == "bagged_xgb":
         return build_bagged_model(build_xgb)
     else:
-        raise f"Unknown model: {name}"
+        raise Exception(f"Unknown model: {name}")
 
 
 def null_values(X: pd.DataFrame) -> List[str]:

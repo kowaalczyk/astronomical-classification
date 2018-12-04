@@ -10,7 +10,7 @@ import numpy as np
 from plasticc.dataset import batch_data as batch_data_func
 from plasticc.dataset import Dataset, build_dataset_structure
 from plasticc.features import simple, tsfresh
-from plasticc import train
+from plasticc.train import train_model
 from plasticc import metrics
 from plasticc import submission
 
@@ -119,7 +119,7 @@ def train(
         model_name: str
 ):
     print("Starting training...")
-    train.train_model(dataset_name=dataset_name, output_path=output_path,
+    train_model(dataset_name=dataset_name, output_path=output_path,
                       yname=target_col, model_name=model_name)
     print("Successfully trained. Dumped results into ", output_path)
 
