@@ -39,7 +39,9 @@ def train_model(
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15,
                                                         random_state=42)
 
+    print("Training!")
     model.fit(X_train.values.astype(np.float32), y_train.values.astype(np.int))
+    print("Done.")
     _save_model_if_path_not_none(model, output_path)
     return model
 
@@ -77,7 +79,7 @@ def null_values(X: pd.DataFrame) -> List[str]:
     return na_cols
 
 
-def build_xgb(training_set):
+def build_xgb():
     xgb_model = XGBClassifier(
         objective='multi:softmax',
         num_class=14,
@@ -112,4 +114,5 @@ def build_bagged_model(base_estimator):
 def _save_model_if_path_not_none(model, path):
     if path is not None:
         pickle.dump(model, open(path, "wb"))
+    print(f"Saved model to {path}")
     return model
