@@ -1,94 +1,43 @@
-import pickle
-from typing import List
+from typing import NamedTuple
 
-from xgboost import XGBClassifier
+from plasticc.dataset import Dataset
+
 import numpy as np
-import pandas as pd
-
-from sklearn.ensemble import BaggingClassifier
-from sklearn.model_selection import train_test_split
-from plasticc.resolvers import resolve_dataset_name, resolve_model_name
-
-random_seed = 2222
+from tqdm.autonotebook import tqdm
 
 
-def train_model(
-        dataset_name: str,
-        output_path: str,
-        model_name: str,
-        yname="target"
-):
+random_state = 42
 
-    model = resolve_model_name(model_name)
-    dataset = resolve_dataset_name(dataset_name)
 
+class ModelWithScore(NamedTuple):
+    model: object=None
+    score: float=0.0
+
+
+def train_model(model, dataset: Dataset, cv_strategy):
+    """ See plasticc.resolvers for available cv_splits (cv strategies) """
     X, y = dataset.train
-
-    X.fillna(0, inplace=True)
     assert(X.notna().all().all())
-    X.drop(columns=[col for col in set(X.columns) if col.endswith('_meta')],
-           inplace=True)
-
-    print("Before infinity removal:", X.shape)
-    X.replace([np.inf, -np.inf], np.nan, inplace=True)
-    na_cols = null_values(X)
-    X.drop(columns=na_cols, inplace=True)
-    print("After infinity removal:", X.shape)
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15,
-                                                        random_state=42)
-
-    print("Training!")
-    model.fit(X_train.values.astype(np.float32), y_train.values.astype(np.int))
-    print("Done.")
-    _save_model_if_path_not_none(model, output_path)
-    return model
+    
+    X_val, y_val = X.values.astype(np.float32), y.values.astype(np.int)
+    splits = cv_strategy.split(X_val, y_val)
+    n_splits = cv_strategy.get_n_splits(X_val, y_val)
+    
+    best_model = ModelWithScore()
+    for train_index, test_index in tqdm(splits, total=n_splits):
+        X_train, y_train = X.iloc[train_index], y.iloc[train_index]
+        X_test, y_test = X.iloc[test_index], y.iloc[test_index]
+        current_model = _train_and_score(model, X_train, y_train, X_test, y_test)
+        if current_model.score > best_model.score:
+            best_model = current_model  # TODO: Consider saving all models to make a bagging ensemble
+    return best_model.model
 
 
-def null_values(X: pd.DataFrame) -> List[str]:
-    print("Total columns:", len(X.columns))
-    na_cols = [col for col in X.columns if X[col].isna().any()]
-    print("Total NA columns: ", len(na_cols))
-    if len(na_cols) < 10:
-        print("NA values by column:")
-        print({na_col: X[na_col].isna().sum() for na_col in na_cols})
-    return na_cols
-
-
-def build_xgb():
-    xgb_model = XGBClassifier(
-        objective='multi:softmax',
-        num_class=14,
-        learning_rate=0.03,
-        subsample=0.9,
-        colsample_bytree=0.5,
-        reg_alpha=0.01,
-        reg_lambda=0.01,
-        min_child_weight=10,
-        n_estimators=1024,
-        max_depth=3,
-        nthread=-1
-    )
-
-    return xgb_model
-
-
-def build_bagged_model(base_estimator):
-    return BaggingClassifier(
-        base_estimator=base_estimator,
-        n_estimators=20,
-        max_samples=0.,
-        max_features=0.67,
-        bootstrap=True,
-        bootstrap_features=True,
-        oob_score=True,
-        n_jobs=-1,
-        random_state=random_seed
-    )
-
-
-def _save_model_if_path_not_none(model, path):
-    if path is not None:
-        pickle.dump(model, open(path, "wb"))
-    print(f"Saved model to {path}")
-    return model
+def _train_and_score(model, X_train, y_train, X_test, y_test) -> ModelWithScore:
+    try:
+        model.fit(X_train.values.astype(np.float32), y_train.values.astype(np.int), verbose=True)
+    except Exception:
+        model.fit(X_train.values.astype(np.float32), y_train.values.astype(np.int))
+    accuracy = model.score(X_test.values.astype(np.float32), y_test.values.astype(np.int))
+    print(f"Accuracy: {accuracy}")
+    return ModelWithScore(model, accuracy)

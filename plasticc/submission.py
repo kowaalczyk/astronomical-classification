@@ -9,6 +9,6 @@ def load_model(model_path: str):
 
 def prepare_submission(output_path: str, model, inp: Dataset):
     for d in inp.iter_test:
-        sub = pd.DataFrame(model.predict_proba(d.values))
+        sub = pd.DataFrame(model.predict_proba(d.values.astype(np.float32)))
         sub['object_id'] = d['object_id']
         sub.to_csv(output_path, index=False)

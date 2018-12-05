@@ -10,7 +10,7 @@ setup(
             'plasticc-dataset-simple = plasticc.scripts:featurize_simple',
             'plasticc-dataset-tsfresh = plasticc.scripts:featurize_tsfresh',
             'plasticc-train = plasticc.scripts:train',
-            'plasticc-eval-model = plasticc.scripts:eval_model'
+            'plasticc-predict = plasticc.scripts:predict'
         ]
     }
 )

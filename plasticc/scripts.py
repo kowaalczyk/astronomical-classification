@@ -7,6 +7,7 @@ import click
 import pandas as pd
 import numpy as np
 
+from plasticc.resolvers import *
 from plasticc.dataset import batch_data as batch_data_func
 from plasticc.dataset import Dataset, build_dataset_structure
 from plasticc.features import simple, tsfresh
@@ -111,31 +112,30 @@ def featurize_tsfresh(base_dataset_path, out_dataset_path, tsfresh_config_path, 
 Names for resolvers may be found in plasticc.resolvers
 """
 @click.command()
-@click.option('--dataset-name', help="Dataset to be trained", required=True)
+@click.option('--dataset-name', help="Name of the dataset to train on from plasticc.resolvers", required=True)
+@click.option('--model-name', help="Name of the model to train from plasticc.reslovers", required=True)
 @click.option('--output-path', help="Model output", required=True)
-@click.option('--target-col', help="Name of target column", default="target")
-@click.option('--model-name', help="Model name", required=True)
-def train(
-        dataset_name: str,
-        output_path: str,
-        target_col: str,
-        model_name: str
-):
-    print("Starting training...")
-    train_model(dataset_name=dataset_name, output_path=output_path,
-                      yname=target_col, model_name=model_name)
-    print("Successfully trained. Dumped results into ", output_path)
+@click.option('--cv-strategy-name', help="Cross validation strategy from plasticc.reslovers", required=True)
+def train(dataset_name: str, output_path: str, model_name: str, cv_strategy_name: str):
+    print("Resolving names...")
+    model = resolve_model_name(model_name)
+    dataset = resolve_dataset_name(dataset_name)
+    cv_strategy = resolve_cv_strategy(cv_strategy_name)
+    print("Training...")
+    model = train_model(model, dataset, cv_strategy)
+    pickle.dump(model, open(output_path, "wb"))
+    print("Successfully trained. Dumped results into:", output_path)
 
 
 @click.command()
 @click.option("--model", "model_path", type=str, help="Saved model path", required=True)
-@click.option("--input", "dataset_name", type=str, help="Input path", required=True)
+@click.option("--input", "dataset_name", type=str, help="Name of the dataset", required=True)
 @click.option("--output", "output_path", type=str, help="Output path", required=True)
-def eval_model(model_path: str, dataset_name: str, output_path: str):
+def predict(model_path: str, dataset_name: str, output_path: str):
     print("Loading model...")
     model = submission.load_model(model_path)
     print("Loading dataset...")
-    data = train.resolve_dataset_name(dataset_name)
+    data = resolve_dataset_name(dataset_name)
     print("Artifical contemplation...")
     submission.prepare_submission(output_path, model, data)
     print("Done.")
