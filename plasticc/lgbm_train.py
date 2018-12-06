@@ -6,17 +6,53 @@ from lightgbm import LGBMClassifier
 from sklearn.model_selection import StratifiedKFold
 
 from plasticc.metrics import (lgbm_multi_weighted_logloss,
-                              multi_weighted_logloss, save_importances)
+                              multi_weighted_logloss)
+from plasticc.training import save_importances
 
 np.warnings.filterwarnings('ignore')
 gc.enable()
 
 
+best_params = {
+    'device': 'cpu',
+    'objective': 'multiclass',
+    'num_class': 14,
+    'boosting_type': 'gbdt',
+    'n_jobs': 16,
+    'max_depth': 7,
+    'n_estimators': 1024,
+    'subsample_freq': 2,
+    'subsample_for_bin': 5000,
+    'min_data_per_group': 100,
+    'max_cat_to_onehot': 4,
+    'cat_l2': 1.0,
+    'cat_smooth': 59.5,
+    'max_cat_threshold': 32,
+    'metric_freq': 10,
+    'verbosity': -1,
+    'metric': 'multi_logloss',
+    'xgboost_dart_mode': False,
+    'uniform_drop': False,
+    'colsample_bytree': 0.5,
+    'drop_rate': 0.173,
+    'learning_rate': 0.0267,
+    'max_drop': 5,
+    'min_child_samples': 10,
+    'min_child_weight': 100.0,
+    'min_split_gain': 0.1,
+    'num_leaves': 7,
+    'reg_alpha': 0.1,
+    'reg_lambda': 0.00023,
+    'skip_drop': 0.44,
+    'subsample': 0.75
+}
+
+
 def lgbm_modeling_cross_validation(params: dict,
-                                   full_train,
+                                   X,
                                    y,
-                                   classes,
-                                   class_weights,
+                                   classes,  # List of class names
+                                   class_weights,  # Dict class -> weight:int
                                    nr_fold=5,
                                    random_state=1):
 
@@ -30,10 +66,10 @@ def lgbm_modeling_cross_validation(params: dict,
                             shuffle=True,
                             random_state=random_state)
 
-    oof_preds = np.zeros((len(full_train), np.unique(y).shape[0]))
+    oof_preds = np.zeros((len(X), np.unique(y).shape[0]))
     for fold_, (trn_, val_) in enumerate(folds.split(y, y)):
-        trn_x, trn_y = full_train.iloc[trn_], y.iloc[trn_]
-        val_x, val_y = full_train.iloc[val_], y.iloc[val_]
+        trn_x, trn_y = X.iloc[trn_], y.iloc[trn_]
+        val_x, val_y = X.iloc[val_], y.iloc[val_]
 
         clf = LGBMClassifier(**params)
         clf.fit(
@@ -52,9 +88,9 @@ def lgbm_modeling_cross_validation(params: dict,
                                      classes, class_weights)))
 
         imp_df = pd.DataFrame({
-                'feature': full_train.columns,
+                'feature': X.columns,
                 'gain': clf.feature_importances_,
-                'fold': [fold_ + 1] * len(full_train.columns),
+                'fold': [fold_ + 1] * len(X.columns),
                 })
         importances = pd.concat([importances, imp_df], axis=0, sort=False)
 

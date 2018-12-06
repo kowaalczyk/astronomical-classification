@@ -6,11 +6,29 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 from xgboost import XGBClassifier
 
-from plasticc.metrics import (multi_weighted_logloss, save_importances,
+from plasticc.metrics import (multi_weighted_logloss,
                               xgb_multi_weighted_logloss)
+
+from plasticc.training import save_importances
 
 gc.enable()
 np.warnings.filterwarnings('ignore')
+
+
+best_params = {
+    'objective': 'multiclass',
+    'booster': 'gbdtree',
+    'n_jobs': 16,
+    'max_depth': 7,
+    'n_estimators': 1024,
+    'verbosity': -1,
+    'colsample_bytree': 0.5,
+    'learning_rate': 0.0267,
+    'min_child_weight': 100.0,
+    'reg_alpha': 0.1,
+    'reg_lambda': 0.00023,
+    'subsample': 0.75
+}
 
 
 def xgb_modeling_cross_validation(params,

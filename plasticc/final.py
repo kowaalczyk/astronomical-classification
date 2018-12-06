@@ -11,28 +11,37 @@ np.warnings.filterwarnings('ignore')
 gc.enable()
 
 
-def process_test(clfs,
+def save_importances(importances_):
+    mean_gain = importances_[['gain', 'feature']].groupby('feature').mean()
+    importances_['mean_gain'] = importances_['feature'].map(mean_gain['gain'])
+    return importances_
+
+
+def process_test(clfs,  # List of classifiers
                  features,
                  featurize_configs,
                  train_mean,
-                 filename='predictions.csv',
+                 output_path='predictions.csv',
+                 meta_path='data/raw/test_set_metadata.csv',
+                 test_path='data/raw/test_set.csv',
+                 id_colname='object_id',
                  chunks=5000000):
     start = time.time()
 
-    meta_test = process_meta('../data/raw/test_set_metadata.csv')
-    # meta_test.set_index('object_id',inplace=True)
+    meta_test = process_meta(meta_path)
+    # meta_test.set_index(id_colname,inplace=True)
 
     remain_df = None
-    for i_c, df in enumerate(pd.read_csv('../data/raw/test_set.csv', chunksize=chunks, iterator=True)):
+    for i_c, df in enumerate(pd.read_csv(test_path, chunksize=chunks, iterator=True)):
         # Check object_ids
         # I believe np.unique keeps the order of group_ids as they appear in the file
-        unique_ids = np.unique(df['object_id'])
+        unique_ids = np.unique(df[id_colname])
 
-        new_remain_df = df.loc[df['object_id'] == unique_ids[-1]].copy()
+        new_remain_df = df.loc[df[id_colname] == unique_ids[-1]].copy()
         if remain_df is None:
-            df = df.loc[df['object_id'].isin(unique_ids[:-1])]
+            df = df.loc[df[id_colname].isin(unique_ids[:-1])]
         else:
-            df = pd.concat([remain_df, df.loc[df['object_id'].isin(unique_ids[:-1])]], axis=0)
+            df = pd.concat([remain_df, df.loc[df[id_colname].isin(unique_ids[:-1])]], axis=0)
         # Create remaining samples df
         remain_df = new_remain_df
 
@@ -44,9 +53,9 @@ def process_test(clfs,
                                  train_mean=train_mean)
 
         if i_c == 0:
-            preds_df.to_csv(filename, header=True, mode='a', index=False)
+            preds_df.to_csv(output_path, header=True, mode='a', index=False)
         else:
-            preds_df.to_csv(filename, header=False, mode='a', index=False)
+            preds_df.to_csv(output_path, header=False, mode='a', index=False)
 
         del preds_df
         gc.collect()
@@ -61,5 +70,5 @@ def process_test(clfs,
                              featurize_configs=featurize_configs,
                              train_mean=train_mean)
 
-    preds_df.to_csv(filename, header=False, mode='a', index=False)
+    preds_df.to_csv(output_path, header=False, mode='a', index=False)
     return

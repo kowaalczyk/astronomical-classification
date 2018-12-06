@@ -4,10 +4,16 @@ import numpy as np
 import pandas as pd
 
 from plasticc.featurize import featurize
-from plasticc.metrics import haversine_plus
+from plasticc.featurize import haversine_plus
 
 np.warnings.filterwarnings('ignore')
 gc.enable()
+
+
+def save_importances(importances_):
+    mean_gain = importances_[['gain', 'feature']].groupby('feature').mean()
+    importances_['mean_gain'] = importances_['feature'].map(mean_gain['gain'])
+    return importances_
 
 
 def process_meta(filename):
