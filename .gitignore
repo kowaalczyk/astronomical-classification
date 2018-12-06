@@ -6,4 +6,4 @@ __pycache__
 .#*
 build
 dist
-catboost_info
+data
