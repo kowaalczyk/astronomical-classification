@@ -1,116 +1,60 @@
-from sklearn.model_selection import ShuffleSplit, cross_val_score
-from sklearn.metrics import make_scorer
-from sklearn.preprocessing import OneHotEncoder
-from xgboost import XGBClassifier
+import gc
+
 import numpy as np
-from plasticc.dataset import Dataset
-import math
+import pandas as pd
+
+gc.enable()
+np.warnings.filterwarnings('ignore')
 
 
-def xgb_score(dataset: Dataset,
-              cv_params: dict,
-              xgb_params={},
-              scoring="f1_macro") -> np.ndarray:
+def multi_weighted_logloss(y_true, y_preds, classes, class_weights):
+    """
+    refactor from
+    @author olivier https://www.kaggle.com/ogrellier
+    multi logloss for PLAsTiCC challenge
+    """
+    y_p = y_preds.reshape(y_true.shape[0], len(classes), order='F')
+    # Trasform y_true in dummies
+    y_ohe = pd.get_dummies(y_true)
+    # Normalize rows and limit y_preds to 1e-15, 1-1e-15
+    y_p = np.clip(a=y_p, a_min=1e-15, a_max=1 - 1e-15)
+    # Transform to log
+    y_p_log = np.log(y_p)
+    # Get the log for ones, .values is used to drop the index of DataFrames
+    # Exclude class 99 for now, since there is no class99 in the training set
+    # we gave a special process for that class
+    y_log_ones = np.sum(y_ohe.values * y_p_log, axis=0)
+    # Get the number of positives for each class
+    nb_pos = y_ohe.sum(axis=0).values.astype(float)
+    # Weight average and divide by the number of positives
+    class_arr = np.array([class_weights[k] for k in sorted(class_weights.keys())])
+    y_w = y_log_ones * class_arr / nb_pos
 
-    X, y = dataset.train
-#    X.dropna(inplace=True, axis=1)
-
-#    cons = X.join(y)
-#    cons.dropna(inplace=True)
-#    X, y = cons[cons.columns[:-1]], cons[cons.columns[-1]]
-
-    model = XGBClassifier(**xgb_params)
-    cv = ShuffleSplit(**cv_params)
-    scores = cross_val_score(model, X, y, cv=cv, scoring=scoring, error_score='raise')
-    return scores
-
-def kaggle_scoring():
-    """ Wrapping loss function for scikit learn """
-    return make_scorer(score_func=kaggle_loss, greater_is_better=False)
-
-def kaggle_loss(y, y_pred, **kwargs):
-    # print(f"loss on y: {y.shape} and y_pred: {y_pred.shape}")
-    """ Implemented multi log loss from kaggle competition """
-    #Analised weights for classes
-    magic_const = 1.9188
-    weight_dict = {
-      "class_6": 1,
-      "class_15": 2,
-      "class_16": 1,
-      "class_42": 1,
-      "class_52": 1,
-      "class_53": 1,
-      "class_62": 1,
-      "class_64": 2,
-      "class_65": 1,
-      "class_67": 1,
-      "class_88": 1,
-      "class_90": 1,
-      "class_92": 1,
-      "class_95": 1,
-    #  "class_99": 2,
-    }
-
-    #evading log extremes
-    min_values = (np.ones(len(y_pred)*len(weight_dict))*(1-1e-15)).reshape(len(y_pred),len(weight_dict))
-    removed_ones = np.minimum(y_pred,min_values)
-    removed_zeros = np.maximum(removed_ones, (1e-15))
-    y_pred = removed_zeros
-
-    #calculating loss
-    ln_p = np.log(y_pred)
-    N = np.array(np.sum(y, axis=0))
-    weights = np.array(list(weight_dict.values()))
-    y_with_ln = np.multiply(y,ln_p)
-    multiplied_weights = np.multiply(weights,y_with_ln/N)
-    #removing nan in case of not represented classes (in that case Ni equals 0 and we get division by zero)
-    nan_removed = np.nan_to_num(multiplied_weights)
-    sum_from_j_to_Ni = np.sum(nan_removed, axis=1)
-    sum_from_i_to_M = np.sum(sum_from_j_to_Ni)
-    numerator = sum_from_i_to_M
-    denominator = sum(weight_dict.values())*magic_const
-    return -numerator/denominator
+    loss = - np.sum(y_w) / np.sum(class_arr)
+    return loss
 
 
-def wtf_xgb_kaggle_loss(y_pred, y_true, **kwargs):
-    """ Implemented multi log loss from kaggle competition (XGBoost version) """
-    #Analised weights for classes
-    magic_const = 1.9188
-    weight_dict = {
-      "class_6": 1,
-      "class_15": 2,
-      "class_16": 1,
-      "class_42": 1,
-      "class_52": 1,
-      "class_53": 1,
-      "class_62": 1,
-      "class_64": 2,
-      "class_65": 1,
-      "class_67": 1,
-      "class_88": 1,
-      "class_90": 1,
-      "class_92": 1,
-      "class_95": 1,
-     # "class_99": 2,
-    }
-#     y = y_true.get_label()
-#     y = OneHotEncoder(sparse=False).fit_transform(labels.reshape(-1, 1))
+def lgbm_multi_weighted_logloss(y_true, y_preds):
+    """
+    refactor from
+    @author olivier https://www.kaggle.com/ogrellier
+    multi logloss for PLAsTiCC challenge
+    """
+    # Taken from Giba's topic : https://www.kaggle.com/titericz
+    # https://www.kaggle.com/c/PLAsTiCC-2018/discussion/67194
+    # with Kyle Boone's post https://www.kaggle.com/kyleboone
+    classes = [6, 15, 16, 42, 52, 53, 62, 64, 65, 67, 88, 90, 92, 95]
+    class_weights = {6: 1, 15: 2, 16: 1, 42: 1, 52: 1, 53: 1, 62: 1, 64: 2, 65: 1, 67: 1, 88: 1, 90: 1, 92: 1, 95: 1}
 
-    #evading log extremes
-    min_values = (np.ones(len(y_pred)*len(weight_dict))*(1-1e-15)).reshape(len(y_pred),len(weight_dict))
-    removed_ones = np.minimum(y_pred,min_values)
-    removed_zeros = np.maximum(np.minimum(y_pred,min_values), (1e-15))
-    y_pred = removed_zeros
+    loss = multi_weighted_logloss(y_true, y_preds, classes, class_weights)
+    return 'wloss', loss, False
 
-    #calculating gradient
-    inverted_p = 1/y_pred
-    N = np.array(np.sum(y_true, axis=0))
-    weights = np.array(list(weight_dict.values()))*magic_const
-    denominator = sum(weight_dict.values())*magic_const
-    gradient = -(np.multiply(np.sum(np.multiply(y_true, inverted_p), axis=0),weights)/N)/denominator
-    
-    #calculating hessian
-    inverted_p2 = -1/inverted_p
-    hessian = (np.multiply(np.sum(np.multiply(y_true, inverted_p2), axis=0),weights)/N)/denominator
-    
-    return  np.nan_to_num(gradient),  np.nan_to_num(hessian)
+
+def xgb_multi_weighted_logloss(y_predicted, y_true, classes, class_weights):
+    loss = multi_weighted_logloss(
+        y_true.get_label(), 
+        y_predicted,
+        classes, 
+        class_weights
+    )
+    return 'wloss', loss

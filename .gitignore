@@ -6,6 +6,3 @@ __pycache__
 .#*
 build
 dist
-models
-catboost_info
-data
