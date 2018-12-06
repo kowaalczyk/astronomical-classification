@@ -31,32 +31,37 @@ best_params = {
 }
 
 
-def xgb_modeling_cross_validation(params,
-                                  full_train,
-                                  y,
-                                  classes,
-                                  class_weights,
-                                  nr_fold=5,
-                                  random_state=1):
+def xgb_modeling_cross_validation(
+        params,
+        X,
+        y,
+        classes,
+        class_weights,
+        nr_fold=5,
+        random_state=1
+):
     # Compute weights
     w = y.value_counts()
     weights = {i: np.sum(w) / w[i] for i in w.index}
 
     # loss function
-    func_loss = partial(xgb_multi_weighted_logloss,
-                        classes=classes,
-                        class_weights=class_weights)
-
+    func_loss = partial(
+        xgb_multi_weighted_logloss,
+        classes=classes,
+        class_weights=class_weights
+    )
+    # all classifiers are saved along with their feature importances
     clfs = []
     importances = pd.DataFrame()
-    folds = StratifiedKFold(n_splits=nr_fold,
-                            shuffle=True,
-                            random_state=random_state)
-
-    oof_preds = np.zeros((len(full_train), np.unique(y).shape[0]))
+    folds = StratifiedKFold(
+        n_splits=nr_fold,
+        shuffle=True,
+        random_state=random_state
+    )
+    oof_preds = np.zeros((len(X), np.unique(y).shape[0]))
     for fold_, (trn_, val_) in enumerate(folds.split(y, y)):
-        trn_x, trn_y = full_train.iloc[trn_], y.iloc[trn_]
-        val_x, val_y = full_train.iloc[val_], y.iloc[val_]
+        trn_x, trn_y = X.iloc[trn_], y.iloc[trn_]
+        val_x, val_y = X.iloc[val_], y.iloc[val_]
 
         clf = XGBClassifier(**params)
         clf.fit(
@@ -70,19 +75,28 @@ def xgb_modeling_cross_validation(params,
         clfs.append(clf)
 
         oof_preds[val_, :] = clf.predict_proba(val_x, ntree_limit=clf.best_ntree_limit)
-        print('no {}-fold loss: {}'.format(fold_ + 1,
-              multi_weighted_logloss(val_y, oof_preds[val_, :],
-                                     classes, class_weights)))
+        print('no {}-fold loss: {}'.format(
+            fold_ + 1,
+            multi_weighted_logloss(
+                val_y, 
+                oof_preds[val_, :],
+                classes, 
+                class_weights
+        )))
 
         imp_df = pd.DataFrame({
-                'feature': full_train.columns,
+                'feature': X.columns,
                 'gain': clf.feature_importances_,
-                'fold': [fold_ + 1] * len(full_train.columns),
+                'fold': [fold_ + 1] * len(X.columns),
                 })
         importances = pd.concat([importances, imp_df], axis=0, sort=False)
 
-    score = multi_weighted_logloss(y_true=y, y_preds=oof_preds,
-                                   classes=classes, class_weights=class_weights)
+    score = multi_weighted_logloss(
+        y_true=y, 
+        y_preds=oof_preds,
+        classes=classes, 
+        class_weights=class_weights
+    )
     print('MULTI WEIGHTED LOG LOSS: {:.5f}'.format(score))
     df_importances = save_importances(importances_=importances)
     df_importances.to_csv('xgb_importances.csv', index=False)

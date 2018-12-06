@@ -49,8 +49,8 @@ def process_flux(df):
     df_flux = pd.DataFrame({
         'flux_ratio_sq': flux_ratio_sq,
         'flux_by_flux_ratio_sq': df['flux'].values * flux_ratio_sq},
-        index=df.index)
-
+        index=df.index
+    )
     return pd.concat([df, df_flux], axis=1)
 
 
@@ -86,35 +86,40 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
                       for k in aggs.keys() for agg in aggs[k]]
     agg_df = process_flux_agg(agg_df)  # new feature to play with tsfresh
 
-    # Add more features with
-    agg_df_ts_flux_passband = extract_features(df,
-                                               column_id='object_id',
-                                               column_sort='mjd',
-                                               column_kind='passband',
-                                               column_value='flux',
-                                               default_fc_parameters=fcp['flux_passband'], n_jobs=n_jobs)
-
-    agg_df_ts_flux = extract_features(df,
-                                      column_id='object_id',
-                                      column_value='flux',
-                                      default_fc_parameters=fcp['flux'],
-                                      n_jobs=n_jobs)
-
-    agg_df_ts_flux_by_flux_ratio_sq = extract_features(df,
-                                                       column_id='object_id',
-                                                       column_value='flux_by_flux_ratio_sq',
-                                                       default_fc_parameters=fcp['flux_by_flux_ratio_sq'],
-                                                       n_jobs=n_jobs)
-
+    # Add more features with tsfresh:
+    agg_df_ts_flux_passband = extract_features(
+        df,
+        column_id='object_id',
+        column_sort='mjd',
+        column_kind='passband',
+        column_value='flux',
+        default_fc_parameters=fcp['flux_passband'], n_jobs=n_jobs
+    )
+    agg_df_ts_flux = extract_features(
+        df,
+        column_id='object_id',
+        column_value='flux',
+        default_fc_parameters=fcp['flux'],
+        n_jobs=n_jobs
+    )
+    agg_df_ts_flux_by_flux_ratio_sq = extract_features(
+        df,
+        column_id='object_id',
+        column_value='flux_by_flux_ratio_sq',
+        default_fc_parameters=fcp['flux_by_flux_ratio_sq'],
+        n_jobs=n_jobs
+    )
     # Add smart feature that is suggested here
     # https://www.kaggle.com/c/PLAsTiCC-2018/discussion/69696#410538
     # dt[detected==1, mjd_diff:=max(mjd)-min(mjd), by=object_id]
     df_det = df[df['detected'] == 1].copy()
-    agg_df_mjd = extract_features(df_det,
-                                  column_id='object_id',
-                                  column_value='mjd',
-                                  default_fc_parameters=fcp['mjd'],
-                                  n_jobs=n_jobs)
+    agg_df_mjd = extract_features(
+        df_det,
+        column_id='object_id',
+        column_value='mjd',
+        default_fc_parameters=fcp['mjd'],
+        n_jobs=n_jobs
+    )
     agg_df_mjd['mjd_diff_det'] = agg_df_mjd['mjd__maximum'].values - agg_df_mjd['mjd__minimum'].values
     del agg_df_mjd['mjd__maximum'], agg_df_mjd['mjd__minimum']
 
@@ -122,11 +127,9 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
     agg_df_ts_flux.index.rename('object_id', inplace=True)
     agg_df_ts_flux_by_flux_ratio_sq.index.rename('object_id', inplace=True)
     agg_df_mjd.index.rename('object_id', inplace=True)
-    agg_df_ts = pd.concat([agg_df,
-                           agg_df_ts_flux_passband,
-                           agg_df_ts_flux,
-                           agg_df_ts_flux_by_flux_ratio_sq,
-                           agg_df_mjd], axis=1).reset_index()
-
+    agg_df_ts = pd.concat(
+        [agg_df, agg_df_ts_flux_passband,agg_df_ts_flux,agg_df_ts_flux_by_flux_ratio_sq,agg_df_mjd], 
+        axis=1
+    ).reset_index()
     result = agg_df_ts.merge(right=df_meta, how='left', on='object_id')
     return result
