@@ -42,6 +42,21 @@ def haversine_plus(lon1, lat1, lon2, lat2):
     }
 
 
+def process_meta(filename):
+    meta_df = pd.read_csv(filename)
+    meta_dict = dict()
+    # distance
+    meta_dict.update(haversine_plus(meta_df['ra'].values, meta_df['decl'].values,
+                                    meta_df['gal_l'].values, meta_df['gal_b'].values))
+
+    meta_dict['hostgal_photoz_certain'] = np.multiply(
+        meta_df['hostgal_photoz'].values,
+        np.exp(meta_df['hostgal_photoz_err'].values))
+
+    meta_df = pd.concat([meta_df, pd.DataFrame(meta_dict, index=meta_df.index)], axis=1)
+    return meta_df
+
+
 @jit
 def process_flux(df):
     flux_ratio_sq = np.power(df['flux'].values / df['flux_err'].values, 2.0)
@@ -128,7 +143,10 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
     agg_df_ts_flux_by_flux_ratio_sq.index.rename('object_id', inplace=True)
     agg_df_mjd.index.rename('object_id', inplace=True)
     agg_df_ts = pd.concat(
-        [agg_df, agg_df_ts_flux_passband,agg_df_ts_flux,agg_df_ts_flux_by_flux_ratio_sq,agg_df_mjd], 
+        [agg_df, agg_df_ts_flux_passband,
+         agg_df_ts_flux,
+         agg_df_ts_flux_by_flux_ratio_sq,
+         agg_df_mjd],
         axis=1
     ).reset_index()
     result = agg_df_ts.merge(right=df_meta, how='left', on='object_id')

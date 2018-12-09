@@ -4,8 +4,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from plasticc.training import predict_chunk
-from plasticc.training import process_meta
+from plasticc.featurize import process_meta, featurize
 
 np.warnings.filterwarnings('ignore')
 gc.enable()
@@ -22,11 +21,12 @@ def process_test(
         features,
         featurize_configs,
         train_mean,
+        n_jobs,
         output_path='predictions.csv',
         meta_path='data/raw/test_set_metadata.csv',
         test_path='data/raw/test_set.csv',
         id_colname='object_id',
-        chunks=5000000
+        chunks=5000000,
 ):
     start = time.time()
 
@@ -53,7 +53,8 @@ def process_test(
             meta_=meta_test,
             features=features,
             featurize_configs=featurize_configs,
-            train_mean=train_mean
+            train_mean=train_mean,
+            n_jobs=n_jobs
         )
 
         if i_c == 0:
@@ -73,7 +74,40 @@ def process_test(
         meta_=meta_test,
         features=features,
         featurize_configs=featurize_configs,
-        train_mean=train_mean
+        train_mean=train_mean,
+        n_jobs=n_jobs
     )
     preds_df.to_csv(output_path, header=False, mode='a', index=False)
     return
+
+
+def predict_chunk(df_, clfs_, meta_, features, featurize_configs, train_mean, n_jobs):
+
+    # process all features
+    full_test = featurize(df_, meta_,
+                          featurize_configs['aggs'],
+                          featurize_configs['fcp'],
+                          n_jobs=n_jobs)
+    full_test.fillna(0, inplace=True)
+
+    # Make predictions
+    preds_ = None
+    for clf in clfs_:
+        if preds_ is None:
+            preds_ = clf.predict_proba(full_test[features])
+        else:
+            preds_ += clf.predict_proba(full_test[features])
+    preds_ = preds_ / len(clfs_)
+
+    # Compute preds_99 as the proba of class not being any of the others
+    # preds_99 = 0.1 gives 1.769
+    preds_99 = np.ones(preds_.shape[0])
+    for i in range(preds_.shape[1]):
+        preds_99 *= (1 - preds_[:, i])
+
+    # Create DataFrame from predictions
+    preds_df_ = pd.DataFrame(preds_,
+                             columns=['class_{}'.format(s) for s in clfs_[0].classes_])
+    preds_df_['object_id'] = full_test['object_id']
+    preds_df_['class_99'] = 0.14 * preds_99 / np.mean(preds_99)
+    return preds_df_
