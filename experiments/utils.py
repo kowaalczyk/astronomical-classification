@@ -54,13 +54,13 @@ def log_args(prefix: str=''):
         @wraps(func)
         def _inner(*args, **kwargs):
             # convert all args to kwargs
-            for argname, argvalue in zip(argnames.args, args):
+            for argname, argvalue in zip(argspec.args, args):
                 if argname in kwargs:
                     raise TypeError(f"{func.__name__}() got multiple values for argument '{argname}'")
                 kwargs[argname] = argvalue
             # extract default values for unspecified arguments
             defaults = argspec.defaults or []
-            default_argnames = argnames[-len(defaults):]
+            default_argnames = argspec.args[-len(defaults):]
             for argname, defaultvalue in zip(default_argnames, defaults):
                 if argname not in kwargs:
                     kwargs[argname] = defaultvalue
