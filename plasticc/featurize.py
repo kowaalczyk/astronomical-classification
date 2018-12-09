@@ -108,7 +108,8 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
         column_sort='mjd',
         column_kind='passband',
         column_value='flux',
-        default_fc_parameters=fcp['flux_passband'], n_jobs=n_jobs
+        default_fc_parameters=fcp['flux_passband'], 
+        n_jobs=n_jobs
     )
     agg_df_ts_flux = extract_features(
         df,
