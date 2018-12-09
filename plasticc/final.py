@@ -16,18 +16,14 @@ def save_importances(importances_):
     return importances_
 
 
-def process_test(
-        clfs,  # List of classifiers
-        features,
-        featurize_configs,
-        train_mean,
-        n_jobs,
-        output_path='predictions.csv',
-        meta_path='data/raw/test_set_metadata.csv',
-        test_path='data/raw/test_set.csv',
-        id_colname='object_id',
-        chunks=5000000,
-):
+def featurize_test(featurize_configs,
+                   n_jobs,
+                   meta_path,
+                   test_path,
+                   output_path='feat_test.csv',
+                   id_colname='object_id',
+                   chunks=5000000,
+                   ):
     start = time.time()
 
     meta_test = process_meta(meta_path)
@@ -47,18 +43,65 @@ def process_test(
         # Create remaining samples df
         remain_df = new_remain_df
 
+        # process all features
+        full_test = featurize(df, meta_test,
+                              featurize_configs['aggs'],
+                              featurize_configs['fcp'],
+                              n_jobs=n_jobs)
+        full_test.fillna(0, inplace=True)
+        if i_c == 0:
+            full_test.to_csv(output_path, header=True, mode='w', index=False)
+        else:
+            full_test.to_csv(output_path, header=False, mode='a', index=False)
+
+        del full_test
+        gc.collect()
+
+    print('{:15d} done in {:5.1f} minutes' .format(
+        chunks * (i_c + 1), (time.time() - start) / 60), flush=True)
+
+    full_test = featurize(remain_df,
+                          meta_test,
+                          featurize_configs['aggs'],
+                          featurize_configs['fcp'],
+                          n_jobs=n_jobs)
+    full_test.fillna(0, inplace=True)
+    full_test.to_csv(output_path, header=False, mode='a', index=False)
+
+
+def predict_test(
+        clfs,  # List of classifiers
+        features,
+        n_jobs,
+        input_path,
+        output_path='predictions.csv',
+        chunks=5000000,
+        id_colname='object_id'
+):
+    start = time.time()
+
+    remain_df = None
+    for i_c, df in enumerate(pd.read_csv(input_path, chunksize=chunks, iterator=True)):
+
+        unique_ids = np.unique(df[id_colname])
+
+        new_remain_df = df.loc[df[id_colname] == unique_ids[-1]].copy()
+        if remain_df is None:
+            df = df.loc[df[id_colname].isin(unique_ids[:-1])]
+        else:
+            df = pd.concat([remain_df, df.loc[df[id_colname].isin(unique_ids[:-1])]], axis=0)
+        # Create remaining samples df
+        remain_df = new_remain_df
+
         preds_df = predict_chunk(
-            df_=df,
-            clfs_=clfs,
-            meta_=meta_test,
+            X=df,
+            clfs=clfs,
             features=features,
-            featurize_configs=featurize_configs,
-            train_mean=train_mean,
             n_jobs=n_jobs
         )
 
         if i_c == 0:
-            preds_df.to_csv(output_path, header=True, mode='a', index=False)
+            preds_df.to_csv(output_path, header=True, mode='w', index=False)
         else:
             preds_df.to_csv(output_path, header=False, mode='a', index=False)
 
@@ -69,35 +112,25 @@ def process_test(
 
     # Compute last object in remain_df
     preds_df = predict_chunk(
-        df_=remain_df,
-        clfs_=clfs,
-        meta_=meta_test,
+        X=remain_df,
+        clfs=clfs,
         features=features,
-        featurize_configs=featurize_configs,
-        train_mean=train_mean,
         n_jobs=n_jobs
     )
     preds_df.to_csv(output_path, header=False, mode='a', index=False)
     return
 
 
-def predict_chunk(df_, clfs_, meta_, features, featurize_configs, train_mean, n_jobs):
-
-    # process all features
-    full_test = featurize(df_, meta_,
-                          featurize_configs['aggs'],
-                          featurize_configs['fcp'],
-                          n_jobs=n_jobs)
-    full_test.fillna(0, inplace=True)
+def predict_chunk(X, clfs, features, n_jobs):
 
     # Make predictions
     preds_ = None
-    for clf in clfs_:
+    for clf in clfs:
         if preds_ is None:
-            preds_ = clf.predict_proba(full_test[features])
+            preds_ = clf.predict_proba(X[features])
         else:
-            preds_ += clf.predict_proba(full_test[features])
-    preds_ = preds_ / len(clfs_)
+            preds_ += clf.predict_proba(X[features])
+    preds_ = preds_ / len(clfs)
 
     # Compute preds_99 as the proba of class not being any of the others
     # preds_99 = 0.1 gives 1.769
@@ -107,7 +140,7 @@ def predict_chunk(df_, clfs_, meta_, features, featurize_configs, train_mean, n_
 
     # Create DataFrame from predictions
     preds_df_ = pd.DataFrame(preds_,
-                             columns=['class_{}'.format(s) for s in clfs_[0].classes_])
-    preds_df_['object_id'] = full_test['object_id']
+                             columns=['class_{}'.format(s) for s in clfs[0].classes_])
+    preds_df_['object_id'] = X['object_id']
     preds_df_['class_99'] = 0.14 * preds_99 / np.mean(preds_99)
     return preds_df_
