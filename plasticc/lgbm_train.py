@@ -109,6 +109,4 @@ def lgbm_modeling_cross_validation(
     )
     print('MULTI WEIGHTED LOG LOSS: {:.5f}'.format(score))
     df_importances = save_importances(importances_=importances)
-    df_importances.to_csv('lgbm_importances.csv', index=False)
-
-    return clfs, score
+    return clfs, score, importances
