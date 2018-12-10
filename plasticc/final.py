@@ -1,8 +1,10 @@
 import gc
 import time
+from typing import List
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from plasticc.featurize import process_meta, featurize
 
@@ -70,66 +72,67 @@ def featurize_test(featurize_configs,
 
 
 def predict_test(
-        clfs,  # List of classifiers
-        features,
-        n_jobs,
-        input_path,
-        output_path='predictions.csv',
-        chunks=5000000,
-        id_colname='object_id'
-):
-    start = time.time()
+        input_path: str,  
+        output_path: str, 
+        feature_colnames: List[str], 
+        id_colname: str, 
+        clfs: List,  # list of classifiers
+        verbose: bool=False
+) -> pd.DataFrame:
+    if 'object_id' in feature_colnames:
+        raise KeyError('Cannot use object_id as a feature!')
+    print("Loading data...")
+    X_test = pd.read_csv(input_path, index_col=id_colname)
+    
+    print("Generating predictions...")
+    subm = predict_chunk(X=X_test, features=feature_colnames, clfs=clfs, verbose=verbose)
 
-    remain_df = None
-    for i_c, df in enumerate(pd.read_csv(input_path, chunksize=chunks, iterator=True)):
-
-        unique_ids = np.unique(df[id_colname])
-
-        new_remain_df = df.loc[df[id_colname] == unique_ids[-1]].copy()
-        if remain_df is None:
-            df = df.loc[df[id_colname].isin(unique_ids[:-1])]
-        else:
-            df = pd.concat([remain_df, df.loc[df[id_colname].isin(unique_ids[:-1])]], axis=0)
-        # Create remaining samples df
-        remain_df = new_remain_df
-
-        preds_df = predict_chunk(
-            X=df,
-            clfs=clfs,
-            features=features,
-            n_jobs=n_jobs
-        )
-
-        if i_c == 0:
-            preds_df.to_csv(output_path, header=True, mode='w', index=False)
-        else:
-            preds_df.to_csv(output_path, header=False, mode='a', index=False)
-
-        del preds_df
-        gc.collect()
-        print('{:15d} done in {:5.1f} minutes' .format(
-                chunks * (i_c + 1), (time.time() - start) / 60), flush=True)
-
-    # Compute last object in remain_df
-    preds_df = predict_chunk(
-        X=remain_df,
-        clfs=clfs,
-        features=features,
-        n_jobs=n_jobs
-    )
-    preds_df.to_csv(output_path, header=False, mode='a', index=False)
-    return
+    print("Postprocessing...")
+    # bagging - compute mean prediction from all clfs for each object_id
+    print(f"Submission shape before grouping: {subm.shape}")
+    subm_single = subm.groupby('object_id').mean()
+    print(f"Submission shape after grouping: {subm_single.shape}")
+    # normalization - all classes' probabilities should be equal to 1.0 for each object_id
+    subm_sum = subm_single.sum(axis=1)
+    for col in subm_single.columns:
+        subm_single[col] = subm_single[col] / subm_sum
+    max_err = np.max(np.abs(subm_single.sum(axis=1).values - 1.0))
+    if max_err > 1e-15:
+        print(f"Warning: high error in submission normalization: {max_err}")
+    # make sure index is typed correctly
+    subm_single.index = subm_single.index.astype(np.int)
+    print(f"Submission shape after postprocessing: {subm_single.shape}")
+    
+    print('Validating submission file...')
+    if not subm_single.shape == (3492890, 15):
+        print("Invalid shape")
+        return subm_single
+    if not subm_single.index.dtype == np.int:
+        print("Invalid index")
+        return subm_single
+    
+    if output_path is not None:
+        print("Saving submission...")
+        subm_single.to_csv(output_path, index=True)
+        print(f"Submission saved to f{output_path}")
+    return subm_single
 
 
-def predict_chunk(X, clfs, features, n_jobs):
-
+def predict_chunk(X, clfs, features, verbose=False):
     # Make predictions
     preds_ = None
-    for clf in clfs:
-        if preds_ is None:
-            preds_ = clf.predict_proba(X[features])
-        else:
-            preds_ += clf.predict_proba(X[features])
+    if verbose:
+        for clf in tqdm(clfs):  # display progressbar
+            if preds_ is None:
+                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
+            else:
+                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
+    else:
+        for clf in clfs:
+            if preds_ is None:
+                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
+            else:
+                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
     preds_ = preds_ / len(clfs)
 
     # Compute preds_99 as the proba of class not being any of the others
@@ -141,6 +144,7 @@ def predict_chunk(X, clfs, features, n_jobs):
     # Create DataFrame from predictions
     preds_df_ = pd.DataFrame(preds_,
                              columns=['class_{}'.format(s) for s in clfs[0].classes_])
-    preds_df_['object_id'] = X['object_id']
+    
+    preds_df_['object_id'] = X.index  # when the dataframe is loaded with index_col=object_id there is no such column as object_id
     preds_df_['class_99'] = 0.14 * preds_99 / np.mean(preds_99)
     return preds_df_

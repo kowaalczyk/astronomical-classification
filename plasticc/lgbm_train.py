@@ -7,7 +7,7 @@ from sklearn.model_selection import StratifiedKFold
 
 from plasticc.metrics import (lgbm_multi_weighted_logloss,
                               multi_weighted_logloss)
-from plasticc.training import save_importances
+from plasticc.training import build_importance_df
 
 np.warnings.filterwarnings('ignore')
 gc.enable()
@@ -55,7 +55,8 @@ def lgbm_modeling_cross_validation(
         classes,  # List of class names
         class_weights,  # Dict class -> weight:int
         nr_fold=5,
-        random_state=1
+        random_state=1,
+        id_colname='object_id'
 ):
     # Compute weights
     w = y.value_counts()
@@ -68,10 +69,12 @@ def lgbm_modeling_cross_validation(
         shuffle=True,
         random_state=random_state
     )
-    oof_preds = np.zeros((len(X), np.unique(y).shape[0]))
+    X_features = X[[col for col in X.columns if not col == id_colname]]
+    
+    oof_preds = np.zeros((len(X_features), np.unique(y).shape[0]))
     for fold_, (trn_, val_) in enumerate(folds.split(y, y)):
-        trn_x, trn_y = X.iloc[trn_], y.iloc[trn_]
-        val_x, val_y = X.iloc[val_], y.iloc[val_]
+        trn_x, trn_y = X_features.iloc[trn_], y.iloc[trn_]
+        val_x, val_y = X_features.iloc[val_], y.iloc[val_]
 
         clf = LGBMClassifier(**params)
         clf.fit(
@@ -95,9 +98,9 @@ def lgbm_modeling_cross_validation(
         )))
 
         imp_df = pd.DataFrame({
-                'feature': X.columns,
+                'feature': X_features.columns,
                 'gain': clf.feature_importances_,
-                'fold': [fold_ + 1] * len(X.columns),
+                'fold': [fold_ + 1] * len(X_features.columns),
                 })
         importances = pd.concat([importances, imp_df], axis=0, sort=False)
 
@@ -108,5 +111,5 @@ def lgbm_modeling_cross_validation(
         class_weights=class_weights
     )
     print('MULTI WEIGHTED LOG LOSS: {:.5f}'.format(score))
-    df_importances = save_importances(importances_=importances)
+    df_importances = build_importance_df(importances_=importances)
     return clfs, score, importances

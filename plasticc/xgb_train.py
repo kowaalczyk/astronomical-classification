@@ -9,7 +9,7 @@ from xgboost import XGBClassifier
 from plasticc.metrics import (multi_weighted_logloss,
                               xgb_multi_weighted_logloss)
 
-from plasticc.training import save_importances
+from plasticc.training import build_importance_df
 
 gc.enable()
 np.warnings.filterwarnings('ignore')
@@ -98,7 +98,7 @@ def xgb_modeling_cross_validation(
         class_weights=class_weights
     )
     print('MULTI WEIGHTED LOG LOSS: {:.5f}'.format(score))
-    df_importances = save_importances(importances_=importances)
+    df_importances = build_importance_df(importances_=importances)
     df_importances.to_csv('xgb_importances.csv', index=False)
 
     return clfs, score
