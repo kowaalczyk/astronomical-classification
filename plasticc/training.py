@@ -44,7 +44,7 @@ def train_and_validate(
     assert(id_colname not in feature_colnames)
     
     X_features = X[feature_colnames]
-    X_features.index = X['object_id']
+    X_features.index = X[id_colname]
     
     classes, weights = classes_and_weights(y)
     
