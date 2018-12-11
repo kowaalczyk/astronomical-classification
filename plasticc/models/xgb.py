@@ -6,10 +6,8 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 from xgboost import XGBClassifier
 
-from plasticc.metrics import (multi_weighted_logloss,
-                              xgb_multi_weighted_logloss)
+from plasticc.models.utils import multi_weighted_logloss, build_importance_df
 
-from plasticc.training import build_importance_df
 
 gc.enable()
 np.warnings.filterwarnings('ignore')
@@ -29,6 +27,16 @@ best_params = {
     'reg_lambda': 0.00023,
     'subsample': 0.75
 }
+
+
+def xgb_multi_weighted_logloss(y_predicted, y_true, classes, class_weights):
+    loss = multi_weighted_logloss(
+        y_true.get_label(), 
+        y_predicted,
+        classes, 
+        class_weights
+    )
+    return 'wloss', loss
 
 
 def xgb_modeling_cross_validation(
@@ -98,7 +106,5 @@ def xgb_modeling_cross_validation(
         class_weights=class_weights
     )
     print('MULTI WEIGHTED LOG LOSS: {:.5f}'.format(score))
-    df_importances = build_importance_df(importances_=importances)
-    df_importances.to_csv('xgb_importances.csv', index=False)
-
-    return clfs, score
+    importances = build_importance_df(importances_=importances)
+    return clfs, score, importances

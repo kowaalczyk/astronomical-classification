@@ -12,17 +12,11 @@ np.warnings.filterwarnings('ignore')
 gc.enable()
 
 
-def save_importances(importances_):
-    mean_gain = importances_[['gain', 'feature']].groupby('feature').mean()
-    importances_['mean_gain'] = importances_['feature'].map(mean_gain['gain'])
-    return importances_
-
-
 def featurize_test(featurize_configs,
                    n_jobs,
                    meta_path,
                    test_path,
-                   output_path='feat_test.csv',
+                   output_path,
                    id_colname='object_id',
                    chunks=5000000,
                    ):
@@ -46,10 +40,12 @@ def featurize_test(featurize_configs,
         remain_df = new_remain_df
 
         # process all features
-        full_test = featurize(df, meta_test,
-                              featurize_configs['aggs'],
-                              featurize_configs['fcp'],
-                              n_jobs=n_jobs)
+        full_test = featurize(
+            df, meta_test,
+            featurize_configs['aggs'],
+            featurize_configs['fcp'],
+            n_jobs=n_jobs
+        )
         full_test.fillna(0, inplace=True)
         if i_c == 0:
             full_test.to_csv(output_path, header=True, mode='w', index=False)
@@ -59,14 +55,16 @@ def featurize_test(featurize_configs,
         del full_test
         gc.collect()
 
-    print('{:15d} done in {:5.1f} minutes' .format(
-        chunks * (i_c + 1), (time.time() - start) / 60), flush=True)
+        rows_complete, time_complete = chunks * (i_c + 1), (time.time() - start) / 60
+        print(f'{rows_complete:15d} done in {time_complete:5.1f} minutes', flush=True)
 
-    full_test = featurize(remain_df,
-                          meta_test,
-                          featurize_configs['aggs'],
-                          featurize_configs['fcp'],
-                          n_jobs=n_jobs)
+    full_test = featurize(
+        remain_df,
+        meta_test,
+        featurize_configs['aggs'],
+        featurize_configs['fcp'],
+        n_jobs=n_jobs
+    )
     full_test.fillna(0, inplace=True)
     full_test.to_csv(output_path, header=False, mode='a', index=False)
 

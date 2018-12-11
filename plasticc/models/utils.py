@@ -6,6 +6,13 @@ import pandas as pd
 gc.enable()
 np.warnings.filterwarnings('ignore')
 
+
+def build_importance_df(importances_):
+    mean_gain = importances_[['gain', 'feature']].groupby('feature').mean()
+    importances_['mean_gain'] = importances_['feature'].map(mean_gain['gain'])
+    return importances_
+
+
 def multi_weighted_logloss(y_true, y_preds, classes, class_weights):
     """
     refactor from
@@ -38,29 +45,3 @@ def multi_weighted_logloss(y_true, y_preds, classes, class_weights):
     y_w = np.nan_to_num(y_w)
     loss = - np.sum(y_w) / np.sum(class_arr)
     return loss
-
-
-def lgbm_multi_weighted_logloss(y_true, y_preds):
-    """
-    refactor from
-    @author olivier https://www.kaggle.com/ogrellier
-    multi logloss for PLAsTiCC challenge
-    """
-    # Taken from Giba's topic : https://www.kaggle.com/titericz
-    # https://www.kaggle.com/c/PLAsTiCC-2018/discussion/67194
-    # with Kyle Boone's post https://www.kaggle.com/kyleboone
-    classes = [6, 15, 16, 42, 52, 53, 62, 64, 65, 67, 88, 90, 92, 95]
-    class_weights = {6: 1, 15: 2, 16: 1, 42: 1, 52: 1, 53: 1, 62: 1, 64: 2, 65: 1, 67: 1, 88: 1, 90: 1, 92: 1, 95: 1}
-
-    loss = multi_weighted_logloss(y_true, y_preds, classes, class_weights)
-    return 'wloss', loss, False
-
-
-def xgb_multi_weighted_logloss(y_predicted, y_true, classes, class_weights):
-    loss = multi_weighted_logloss(
-        y_true.get_label(), 
-        y_predicted,
-        classes, 
-        class_weights
-    )
-    return 'wloss', loss

@@ -151,4 +151,5 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
         axis=1
     ).reset_index()
     result = agg_df_ts.merge(right=df_meta, how='left', on='object_id')
+    result.fillna(0, inplace=True)
     return result
