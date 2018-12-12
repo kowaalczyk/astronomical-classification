@@ -34,9 +34,9 @@ def xgb_multi_weighted_logloss(y_predicted,
                                classes=[6, 15, 16, 42, 52, 53, 62, 64, 65, 67, 88, 90, 92, 95],
                                class_weights={6: 1, 15: 2, 16: 1, 42: 1, 52: 1, 53: 1, 62: 1, 64: 2, 65: 1, 67: 1, 88: 1, 90: 1, 92: 1, 95: 1}):
     loss = multi_weighted_logloss(
-        y_true.get_label(), 
+        y_true.get_label(),
         y_predicted,
-        classes, 
+        classes,
         class_weights
     )
     return 'wloss', loss
@@ -103,8 +103,10 @@ def xgb_modeling_cross_validation(
         importances = pd.concat([importances, imp_df], axis=0, sort=False)
 
     score = multi_weighted_logloss(
-        y_true=y, 
+        y_true=y,
         y_preds=oof_preds,
+        classes=classes,
+        class_weights=class_weights
     )
     print('MULTI WEIGHTED LOG LOSS: {:.5f}'.format(score))
     importances = build_importance_df(importances_=importances)
