@@ -51,7 +51,7 @@ def train_and_validate(
         clfs, score, importances = lgbm_modeling_cross_validation(
             X_features=X_features,
             y=y,
-            params=model_params,
+            params=model_params['lgbm'],
             classes=classes,
             class_weights=weights,
             nr_fold=nr_fold,
@@ -66,7 +66,7 @@ def train_and_validate(
         clfs, score, importances = xgb_modeling_cross_validation(
             X_features=X_features,
             y=y,
-            params=model_params,
+            params=model_params['xgb'],
             classes=classes,
             class_weights=weights,
             nr_fold=nr_fold,
