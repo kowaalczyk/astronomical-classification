@@ -83,7 +83,7 @@ def lgbm_modeling_cross_validation(
         shuffle=True,
         random_state=random_state
     )
-    
+
     oof_preds = np.zeros((len(X_features), np.unique(y).shape[0]))
     for fold_, (trn_, val_) in enumerate(folds.split(y, y)):
         trn_x, trn_y = X_features.iloc[trn_], y.iloc[trn_]
@@ -104,11 +104,11 @@ def lgbm_modeling_cross_validation(
         print('no {}-fold loss: {}'.format(
             fold_ + 1,
             multi_weighted_logloss(
-                val_y, 
+                val_y,
                 oof_preds[val_, :],
-                classes, 
+                classes,
                 class_weights
-        )))
+            )))
 
         imp_df = pd.DataFrame({
                 'feature': X_features.columns,
@@ -118,9 +118,9 @@ def lgbm_modeling_cross_validation(
         importances = pd.concat([importances, imp_df], axis=0, sort=False)
 
     score = multi_weighted_logloss(
-        y_true=y, 
+        y_true=y,
         y_preds=oof_preds,
-        classes=classes, 
+        classes=classes,
         class_weights=class_weights
     )
     print('MULTI WEIGHTED LOG LOSS: {:.5f}'.format(score))
