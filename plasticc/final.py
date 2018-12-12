@@ -122,15 +122,15 @@ def predict_chunk(X, clfs, features, verbose=False):
     if verbose:
         for clf in tqdm(clfs):  # display progressbar
             if preds_ is None:
-                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
+                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * clf.score
             else:
-                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
+                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * clf.score
     else:
         for clf in clfs:
             if preds_ is None:
-                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
+                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * clf.score
             else:
-                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
+                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * clf.score
     preds_ = preds_ / len(clfs)
 
     # Compute preds_99 as the proba of class not being any of the others
