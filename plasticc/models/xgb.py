@@ -68,10 +68,10 @@ def xgb_modeling_cross_validation(
         shuffle=True,
         random_state=random_state
     )
-    oof_preds = np.zeros((len(X), np.unique(y).shape[0]))
+    oof_preds = np.zeros((len(X_features), np.unique(y).shape[0]))
     for fold_, (trn_, val_) in enumerate(folds.split(y, y)):
-        trn_x, trn_y = X.iloc[trn_], y.iloc[trn_]
-        val_x, val_y = X.iloc[val_], y.iloc[val_]
+        trn_x, trn_y = X_features.iloc[trn_], y.iloc[trn_]
+        val_x, val_y = X_features.iloc[val_], y.iloc[val_]
 
         clf = XGBClassifier(**params)
         clf.fit(
@@ -95,9 +95,9 @@ def xgb_modeling_cross_validation(
         )))
 
         imp_df = pd.DataFrame({
-                'feature': X.columns,
+                'feature': X_features.columns,
                 'gain': clf.feature_importances_,
-                'fold': [fold_ + 1] * len(X.columns),
+                'fold': [fold_ + 1] * len(X_features.columns),
                 })
         importances = pd.concat([importances, imp_df], axis=0, sort=False)
 
