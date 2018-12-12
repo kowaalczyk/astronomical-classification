@@ -43,7 +43,7 @@ def xgb_multi_weighted_logloss(y_predicted, y_true):
 
 def xgb_modeling_cross_validation(
         params,
-        X,
+        X_features,
         y,
         classes,
         class_weights,
