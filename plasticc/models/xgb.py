@@ -104,8 +104,6 @@ def xgb_modeling_cross_validation(
     score = multi_weighted_logloss(
         y_true=y, 
         y_preds=oof_preds,
-        classes=classes, 
-        class_weights=class_weights
     )
     print('MULTI WEIGHTED LOG LOSS: {:.5f}'.format(score))
     importances = build_importance_df(importances_=importances)
