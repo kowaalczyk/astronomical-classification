@@ -1,9 +1,8 @@
 import gc
 import time
 from typing import List
+from sklearn.preprocessing import MinMaxScaler
 
-from numba import jit
-from math import log
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -135,22 +134,19 @@ def predict_chunk(X, clfs, features, verbose=False):
     if verbose:
         for clf in tqdm(clfs):  # display progressbar
             if preds_ is None:
-                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_)  # * clf.score
+                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * clf.score
             else:
-                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)  # * clf.score
+                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * clf.score
     else:
         for clf in clfs:
             if preds_ is None:
-                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_)  # * clf.score
+                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * clf.score
             else:
-                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)  # * clf.score
+                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * clf.score
     preds_ = preds_ / len(clfs)
+    preds_ = MinMaxScaler().fit_transform(preds_)
 
-    # Compute preds_99 as the proba of class not being any of the others
-    # preds_99 = 0.1 gives 1.769
-    # preds_99 = np.ones(preds_.shape[0])
-    # for i in range(preds_.shape[1]):
-    #     preds_99 *= (1 - preds_[:, i])
+    # Compute preds_99 as Renyi Entropy. Square adds spice...
     preds_99 = renyEntropy(10, preds_) ** 2  # It behaves most naturally. Both numbers may be adjusted
 
     # Create DataFrame from predictions
