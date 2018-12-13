@@ -151,7 +151,7 @@ def predict_chunk(X, clfs, features, verbose=False):
 
     # Create DataFrame from predictions
     preds_df_ = pd.DataFrame(preds_,
-                             columns=['class_{}'.format(s) for s in clfs[0].classes_])
+                             columns=['class_{}'.format(s) for s in clfs[0][0].classes_])
 
     preds_df_['object_id'] = X.index  # when the dataframe is loaded with index_col=object_id there is no such column as object_id
     preds_df_['class_99'] = preds_99  # 0.14 * preds_99 / np.mean(preds_99)
