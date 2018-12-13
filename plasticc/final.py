@@ -146,13 +146,14 @@ def predict_chunk(X, clfs, features, verbose=False):
     preds_ = preds_ / len(clfs)
     preds_ = MinMaxScaler().fit_transform(preds_)
 
-    # Compute preds_99 as Renyi Entropy. Square adds spice...
-    preds_99 = renyEntropy(10, preds_) ** 2  # It behaves most naturally. Both numbers may be adjusted
+    preds_99 = np.ones(preds_.shape[0])
+    for i in range(preds_.shape[1]):
+        preds_99 *= (1 - preds_[:, i])
 
     # Create DataFrame from predictions
     preds_df_ = pd.DataFrame(preds_,
                              columns=['class_{}'.format(s) for s in clfs[0][0].classes_])
 
     preds_df_['object_id'] = X.index  # when the dataframe is loaded with index_col=object_id there is no such column as object_id
-    preds_df_['class_99'] = preds_99  # 0.14 * preds_99 / np.mean(preds_99)
+    preds_df_['class_99'] = 0.14 * preds_99 / np.mean(preds_99)
     return preds_df_
