@@ -2,6 +2,8 @@ import gc
 import time
 from typing import List
 
+from numba import jit
+from math import log
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -70,10 +72,10 @@ def featurize_test(featurize_configs,
 
 
 def predict_test(
-        input_path: str,  
-        output_path: str, 
-        feature_colnames: List[str], 
-        id_colname: str, 
+        input_path: str,
+        output_path: str,
+        feature_colnames: List[str],
+        id_colname: str,
         clfs: List,  # list of classifiers
         verbose: bool=False
 ) -> pd.DataFrame:
@@ -81,7 +83,7 @@ def predict_test(
         raise KeyError('Cannot use object_id as a feature!')
     print("Loading data...")
     X_test = pd.read_csv(input_path, index_col=id_colname)
-    
+
     print("Generating predictions...")
     subm = predict_chunk(X=X_test, features=feature_colnames, clfs=clfs, verbose=verbose)
 
@@ -100,7 +102,7 @@ def predict_test(
     # make sure index is typed correctly
     subm_single.index = subm_single.index.astype(np.int)
     print(f"Submission shape after postprocessing: {subm_single.shape}")
-    
+
     print('Validating submission file...')
     if not subm_single.shape == (3492890, 15):
         print("Invalid shape")
@@ -108,12 +110,23 @@ def predict_test(
     if not subm_single.index.dtype == np.int:
         print("Invalid index")
         return subm_single
-    
+
     if output_path is not None:
         print("Saving submission...")
         subm_single.to_csv(output_path, index=True)
         print(f"Submission saved to f{output_path}")
     return subm_single
+
+
+def renyEntropy(alpha, vector):
+    if alpha < 0 or alpha == 1:
+        raise Exception('alpha must not be 1 neither negative')
+
+    coeff = 1 / (1 - alpha)
+    powered = vector ** alpha
+    sumpow = np.sum(powered, axis=1)
+    logof = np.log(sumpow) / np.log(alpha)
+    return logof * coeff
 
 
 def predict_chunk(X, clfs, features, verbose=False):
@@ -135,14 +148,15 @@ def predict_chunk(X, clfs, features, verbose=False):
 
     # Compute preds_99 as the proba of class not being any of the others
     # preds_99 = 0.1 gives 1.769
-    preds_99 = np.ones(preds_.shape[0])
-    for i in range(preds_.shape[1]):
-        preds_99 *= (1 - preds_[:, i])
+    # preds_99 = np.ones(preds_.shape[0])
+    # for i in range(preds_.shape[1]):
+    #     preds_99 *= (1 - preds_[:, i])
+    preds_99 = renyEntropy(10, preds_) ** 2  # It behaves most naturally. Both numbers may be adjusted
 
     # Create DataFrame from predictions
     preds_df_ = pd.DataFrame(preds_,
                              columns=['class_{}'.format(s) for s in clfs[0].classes_])
-    
+
     preds_df_['object_id'] = X.index  # when the dataframe is loaded with index_col=object_id there is no such column as object_id
     preds_df_['class_99'] = 0.14 * preds_99 / np.mean(preds_99)
     return preds_df_
