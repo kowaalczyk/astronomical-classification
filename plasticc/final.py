@@ -132,17 +132,17 @@ def predict_chunk(X, clfs, features, verbose=False):
     # Make predictions
     preds_ = None
     if verbose:
-        for clf in tqdm(clfs):  # display progressbar
+        for (clf, scor) in tqdm(clfs):  # display progressbar
             if preds_ is None:
-                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * clf.score
+                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * scor
             else:
-                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * clf.score
+                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * scor
     else:
         for clf in clfs:
             if preds_ is None:
-                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * clf.score
+                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * scor
             else:
-                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * clf.score
+                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * scor
     preds_ = preds_ / len(clfs)
     preds_ = MinMaxScaler().fit_transform(preds_)
 
@@ -154,5 +154,5 @@ def predict_chunk(X, clfs, features, verbose=False):
                              columns=['class_{}'.format(s) for s in clfs[0].classes_])
 
     preds_df_['object_id'] = X.index  # when the dataframe is loaded with index_col=object_id there is no such column as object_id
-    preds_df_['class_99'] = 0.14 * preds_99 / np.mean(preds_99)
+    preds_df_['class_99'] = preds_99  # 0.14 * preds_99 / np.mean(preds_99)
     return preds_df_

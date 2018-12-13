@@ -83,7 +83,15 @@ def xgb_modeling_cross_validation(
             early_stopping_rounds=50,
             sample_weight=trn_y.map(weights)
         )
-        clfs.append(clf)
+
+        scor = multi_weighted_logloss(
+                val_y, 
+                oof_preds[val_, :],
+                classes, 
+                class_weights
+        )
+
+        clfs.append((clf, scor))
 
         oof_preds[val_, :] = clf.predict_proba(val_x, ntree_limit=clf.best_ntree_limit)
         print('no {}-fold loss: {}'.format(

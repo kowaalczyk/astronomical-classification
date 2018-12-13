@@ -132,13 +132,13 @@ class SearchResult(NamedTuple):
 
 def random_search(
         n_iter: int,
-        X: pd.DataFrame, 
-        y: pd.Series, 
-        feature_colnames: List[str], 
-        id_colname: str='object_id', 
+        X: pd.DataFrame,
+        y: pd.Series,
+        feature_colnames: List[str],
+        id_colname: str='object_id',
         model: str='lgbm',  # 'lgbm' or 'xgb'
-        search_params: dict={}, 
-        nr_fold: int=5, 
+        search_params: dict={},
+        nr_fold: int=5,
         random_state: int=1,
 ) -> Tuple[List[TrainingResult], int]:
     input_params = [None for _ in range(n_iter)]
@@ -148,16 +148,16 @@ def random_search(
         input_params[i] = {
             key: np.random.choice(search_params[key]) for key in search_params.keys()
         }
-        training_results[i] = train_and_validate(
-            X=X, 
-            y=y, 
-            feature_colnames=feature_colnames, 
-            id_colname=id_colname, 
+        training_results[i] = [c for (c, _) in train_and_validate(
+            X=X,
+            y=y,
+            feature_colnames=feature_colnames,
+            id_colname=id_colname,
             model=model,
-            model_params=input_params[i], 
-            nr_fold=nr_fold, 
+            model_params=input_params[i],
+            nr_fold=nr_fold,
             random_state=random_state
-        )
+        )]
         if best_idx == -1 or training_results[i].score < training_results[best_idx].score:
             best_idx = i
     return SearchResult(
