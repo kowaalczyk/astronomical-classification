@@ -1,4 +1,7 @@
 import gc
+from typing import Tuple
+from functools import partial
+import multiprocessing as mp
 
 import numpy as np
 import pandas as pd
@@ -68,7 +71,6 @@ def process_flux(df):
     )
     return pd.concat([df, df_flux], axis=1)
 
-
 @jit
 def process_flux_agg(df):
     flux_w_mean = df['flux_by_flux_ratio_sq_sum'].values / df['flux_ratio_sq_sum'].values
@@ -82,6 +84,38 @@ def process_flux_agg(df):
         }, index=df.index)
 
     return pd.concat([df, df_flux_agg], axis=1)
+
+
+def process_bin(bin_idx: int, bin_df: pd.DataFrame, bin_aggs: dict) -> pd.Series:
+    bin_agg_df = bin_df.agg(bin_aggs)
+    bin_agg_series = pd.concat([
+        bin_agg_df.xs(bin_agg_df.index[i]).add_suffix(f'_{aggname}') 
+        for i, aggname in enumerate(bin_agg_df.index)
+    ], axis=0).add_prefix(f'bin_{bin_idx+1}_')
+    return bin_agg_series
+
+def process_group(group_data: Tuple[int, pd.DataFrame], bin_aggs: dict) -> pd.Series:
+    group_idx, group = group_data
+    min_time = group['mjd'].min()
+    max_time = group['mjd'].max()
+    interval = (max_time+1e-15 - min_time)/3
+    bins = [group[(group['mjd'] >= min_time + i*interval) & (group['mjd'] < min_time + (i+1)*interval)] for i in range(3)]
+    bins_series = [process_bin(bin_idx, bin_df, bin_aggs) for bin_idx, bin_df in enumerate(bins)]
+    agg_series_all_bins = pd.concat(bins_series, axis=0).dropna().rename(group_idx)
+    return agg_series_all_bins
+
+def compute_binned_features(series_df: pd.DataFrame, bin_aggs: dict, n_jobs=12):
+    """
+    Parallel computation of series bins splitted into 
+    """
+    process_group_with_fixed_aggs = partial(
+        process_group,
+        bin_aggs=bin_aggs
+    )
+    gbo = series_df.groupby('object_id')
+    with mp.Pool(n_jobs) as pool:
+        group_features_series = pool.map(process_group_with_fixed_aggs, gbo)
+    return pd.concat(group_features_series, axis=1, sort=False).transpose()
 
 
 def featurize(df, df_meta, aggs, fcp, n_jobs=4):

@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from lightgbm import LGBMClassifier
 from sklearn.model_selection import StratifiedKFold
+from imblearn.over_sampling import SMOTE
 
 from plasticc.models.utils import multi_weighted_logloss, build_importance_df
 
@@ -88,6 +89,10 @@ def lgbm_modeling_cross_validation(
     for fold_, (trn_, val_) in enumerate(folds.split(y, y)):
         trn_x, trn_y = X_features.iloc[trn_], y.iloc[trn_]
         val_x, val_y = X_features.iloc[val_], y.iloc[val_]
+
+        sm = SMOTE(k_neighbors=7, n_jobs=params['n_jobs'], random_state=42)
+        trn_x, trn_y = sm.fit_resample(trn_x, trn_y)
+        trn_x, trn_y = pd.DataFrame(trn_x, columns=X_features.columns), pd.Series(trn_y)
 
         clf = LGBMClassifier(**params)
         clf.fit(
