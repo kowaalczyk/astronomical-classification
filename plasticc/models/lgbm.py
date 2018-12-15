@@ -5,6 +5,9 @@ import pandas as pd
 from lightgbm import LGBMClassifier
 from sklearn.model_selection import StratifiedKFold
 from imblearn.over_sampling import SMOTE
+import tensorflow as tf
+# tf.enable_eager_execution()
+# tfe = tf.contrib.eager
 
 from plasticc.models.utils import multi_weighted_logloss, build_importance_df
 
@@ -64,6 +67,22 @@ def lgbm_multi_weighted_logloss(y_true, y_preds):
     return 'wloss', loss, False
 
 
+def lgbm_objective(y_true, y_preds):
+    """
+    refactor from
+    @author olivier https://www.kaggle.com/ogrellier
+    multi logloss for PLAsTiCC challenge
+    """
+    # Taken from Giba's topic : https://www.kaggle.com/titericz
+    # https://www.kaggle.com/c/PLAsTiCC-2018/discussion/67194
+    # with Kyle Boone's post https://www.kaggle.com/kyleboone
+    classes = [6, 15, 16, 42, 52, 53, 62, 64, 65, 67, 88, 90, 92, 95]
+    class_weights = {6: 1, 15: 2, 16: 1, 42: 1, 52: 1, 53: 1, 62: 1, 64: 2, 65: 1, 67: 1, 88: 1, 90: 1, 92: 1, 95: 1}
+
+    loss = multi_weighted_logloss(y_true, y_preds, classes, class_weights)
+    return 'wloss', loss, False
+
+
 def lgbm_modeling_cross_validation(
         params: dict,
         X_features,
@@ -100,7 +119,7 @@ def lgbm_modeling_cross_validation(
             eval_set=[(trn_x, trn_y), (val_x, val_y)],
             eval_metric=lgbm_multi_weighted_logloss,
             verbose=100,
-            early_stopping_rounds=50,
+            early_stopping_rounds=100,
             sample_weight=trn_y.map(weights)
         )
 

@@ -1,11 +1,12 @@
 from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation
+from keras.layers import Dense, Dropout, Activation, Conv1D, BatchNormalization
 from keras.optimizers import Adadelta
 import keras.backend as K
 from sklearn.model_selection import StratifiedKFold
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from imblearn.over_sampling import SMOTE
 
 from plasticc.models.utils import multi_weighted_logloss as mwl_common
 
@@ -37,12 +38,13 @@ def build_classifier(
         optimizer_lr: float=0.25,
 ):
     model = Sequential()
+    layer_dim_interval = (hidden_layer_dim - num_classes) // num_hidden_layers
     for i in range(num_hidden_layers):
         if i == 0:
             model.add(Dense(hidden_layer_dim, activation='tanh', input_dim=input_dim))
         else:
-            model.add(Dense(hidden_layer_dim, activation='tanh'))
-        model.add(Dropout(dropout_pct))
+            model.add(Dense(hidden_layer_dim - i*layer_dim_interval, activation='tanh'))
+        model.add(BatchNormalization())
     model.add(Dense(num_classes, activation='softmax'))
     model.compile(
         loss=multi_weighted_logloss,
@@ -80,12 +82,19 @@ def mlp_modeling_cross_validation(
     oof_preds = np.zeros((len(X_features), np.unique(y).shape[0]))
     for fold_, (trn_, val_) in enumerate(folds.split(y, y)):
         trn_x, trn_y = X_features.iloc[trn_], y.iloc[trn_]
-        trn_y_ohe = y_ohe.iloc[trn_]
         val_x, val_y = X_features.iloc[val_], y.iloc[val_]
+
+        sm = SMOTE(k_neighbors=7, n_jobs=8, random_state=42)
+        trn_x, trn_y = sm.fit_resample(trn_x, trn_y)
+        trn_x, trn_y = pd.DataFrame(trn_x, columns=X_features.columns), pd.Series(trn_y)
+        
+        trn_y_ohe = pd.get_dummies(trn_y)  # need to get dummies after resampling
+        assert(trn_y_ohe.shape[1] == 14)  # check if all classes were sampled correctly
+
         val_y_ohe = y_ohe.iloc[val_]
         norm_sample_weights = trn_y.map(weights).values  #  / trn_y.map(weights).values.sum()
         
-        clf = build_classifier(**params)        
+        clf = build_classifier(**params)
         history = clf.fit(
             trn_x.values.astype(np.float32), 
             trn_y_ohe.values.astype(np.bool), 
