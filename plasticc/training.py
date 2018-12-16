@@ -14,7 +14,7 @@ np.warnings.filterwarnings('ignore')
 gc.enable()
 
 
-def path_from_cv_score(score, submissions_directory: str=os.path.abspath('../submissions'), suffix: str='') -> str:
+def path_from_cv_score(score, submissions_directory: str=os.path.abspath('../../submissions'), suffix: str='') -> str:
     filename = f"subm_{score:.6f}_{dt.now().strftime('%Y-%m-%d-%H-%M')}{suffix}.csv"
     return os.path.join(submissions_directory, filename)
 
@@ -85,8 +85,9 @@ def train_and_validate(
             y=y,
             classes=classes,
             class_weights=weights,
-            params=model_params,
+            params=model_params['mlp'],
             fit_params=fit_params,
+            nr_fold=nr_fold,
             random_state=random_state
         )
         return TrainingResult(

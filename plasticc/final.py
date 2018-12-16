@@ -112,8 +112,11 @@ def predict_test(
 
     if output_path is not None:
         print("Saving submission...")
-        subm_single.to_csv(output_path, index=True)
-        print(f"Submission saved to f{output_path}")
+        try:
+            subm_single.to_csv(output_path, index=True)
+            print(f"Submission saved to f{output_path}")
+        except Exception as e:
+            print(e)
     return subm_single
 
 
@@ -134,15 +137,15 @@ def predict_chunk(X, clfs, features, verbose=False):
     if verbose:
         for (clf, scor) in tqdm(clfs):  # display progressbar
             if preds_ is None:
-                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * scor
+                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_)# * clf.score
             else:
-                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * scor
+                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)# * clf.score
     else:
         for clf in clfs:
             if preds_ is None:
-                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * scor
+                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_)# * clf.score
             else:
-                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_) * scor
+                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)# * clf.score
     preds_ = preds_ / len(clfs)
     preds_ = MinMaxScaler().fit_transform(preds_)
 
@@ -155,5 +158,5 @@ def predict_chunk(X, clfs, features, verbose=False):
                              columns=['class_{}'.format(s) for s in clfs[0][0].classes_])
 
     preds_df_['object_id'] = X.index  # when the dataframe is loaded with index_col=object_id there is no such column as object_id
-    preds_df_['class_99'] = 0.14 * preds_99 / np.mean(preds_99)
+    preds_df_['class_99'] = preds_99
     return preds_df_

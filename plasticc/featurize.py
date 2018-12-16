@@ -5,13 +5,18 @@ import multiprocessing as mp
 
 import numpy as np
 import pandas as pd
+from scipy.stats import linregress
+from scipy.signal import lombscargle, find_peaks
+from scipy.optimize import curve_fit
+from sklearn.preprocessing import minmax_scale
+from tsfresh.feature_extraction import extract_features
 
 from numba import jit
-from tsfresh.feature_extraction import extract_features
 
 gc.enable()
 np.warnings.filterwarnings('ignore')
 
+# features for metadata, from Kernel
 
 @jit
 def haversine_plus(lon1, lat1, lon2, lat2):
@@ -44,6 +49,7 @@ def haversine_plus(lon1, lat1, lon2, lat2):
                                np.multiply(lon2, lat2)),
     }
 
+# main metadata processing function
 
 def process_meta(filename):
     meta_df = pd.read_csv(filename)
@@ -59,6 +65,7 @@ def process_meta(filename):
     meta_df = pd.concat([meta_df, pd.DataFrame(meta_dict, index=meta_df.index)], axis=1)
     return meta_df
 
+# features for time series, from the Kernel
 
 @jit
 def process_flux(df):
@@ -85,38 +92,150 @@ def process_flux_agg(df):
 
     return pd.concat([df, df_flux_agg], axis=1)
 
+# custom normalized series groupby features
 
-def process_bin(bin_idx: int, bin_df: pd.DataFrame, bin_aggs: dict) -> pd.Series:
-    bin_agg_df = bin_df.agg(bin_aggs)
-    bin_agg_series = pd.concat([
-        bin_agg_df.xs(bin_agg_df.index[i]).add_suffix(f'_{aggname}') 
-        for i, aggname in enumerate(bin_agg_df.index)
-    ], axis=0).add_prefix(f'bin_{bin_idx+1}_')
-    return bin_agg_series
+@jit
+def gauss_function(x, a, x0, sigma):
+    return a*np.exp(-(x-x0)**2/(2*sigma**2))
 
-def process_group(group_data: Tuple[int, pd.DataFrame], bin_aggs: dict) -> pd.Series:
-    group_idx, group = group_data
-    min_time = group['mjd'].min()
-    max_time = group['mjd'].max()
-    interval = (max_time+1e-15 - min_time)/3
-    bins = [group[(group['mjd'] >= min_time + i*interval) & (group['mjd'] < min_time + (i+1)*interval)] for i in range(3)]
-    bins_series = [process_bin(bin_idx, bin_df, bin_aggs) for bin_idx, bin_df in enumerate(bins)]
-    agg_series_all_bins = pd.concat(bins_series, axis=0).dropna().rename(group_idx)
-    return agg_series_all_bins
+lombscargle_freqs = np.linspace(0.01, 4, 400)
 
-def compute_binned_features(series_df: pd.DataFrame, bin_aggs: dict, n_jobs=12):
-    """
-    Parallel computation of series bins splitted into 
-    """
-    process_group_with_fixed_aggs = partial(
-        process_group,
-        bin_aggs=bin_aggs
-    )
-    gbo = series_df.groupby('object_id')
-    with mp.Pool(n_jobs) as pool:
-        group_features_series = pool.map(process_group_with_fixed_aggs, gbo)
-    return pd.concat(group_features_series, axis=1, sort=False).transpose()
+@jit
+def process_passband_features(x: np.array, y: np.array) -> Tuple[np.array, np.array]:
+    # raw peaks
+    peaks, _ = find_peaks(y)
+    if len(peaks) > 0:
+        peak_values = y.take(peaks)
+        peak_time = x.take(peaks)
+        peak_features = np.array([
+            peak_time.min(),
+            peak_time.max(),
+            len(peaks),
+            peak_time.mean(),
+            peak_values.min(),
+            peak_values.max(),
+            peak_values.mean(),
+            peak_values.std(),
+        ], dtype=np.float64)
+    else:
+        peak_features = np.zeros(8, dtype=np.float64)
+    peak_names =  np.array([
+        'peak_time_min',
+        'peak_time_max',
+        'peaks_count',
+        'peak_time_mean',
+        'peak_values_min',
+        'peak_values_max',
+        'peak_values_mean',
+        'peak_values_std',
+    ], dtype=str)
+    # period
+    periodogram = lombscargle(x, y, freqs=lombscargle_freqs)
+    peaks, _ = find_peaks(periodogram)
+    if len(peaks) > 0:
+        peak_values = periodogram.take(peaks)
+#         peak_time = minmax_scale(peaks, feature_range=(-1,1))
+        period_features = np.array([
+            peaks.min(),
+            peaks.max(),
+            len(peaks),
+            peaks.mean(),
+            peak_values.min(),
+            peak_values.max(),
+            peak_values.mean(),
+            peak_values.std(),
+        ], dtype=np.float64)
+    else:
+        period_features = np.zeros(8, dtype=np.float64)
+    period_names = np.array([
+        'period_peak_time_min',
+        'period_peak_time_max',
+        'period_peaks_count',
+        'period_peak_time_mean',
+        'period_peak_values_min',
+        'period_peak_values_max',
+        'period_peak_values_mean',
+        'period_peak_values_std',
+    ], dtype=str)
+    # linear
+    lin = linregress(x, y)
+    linear_features = np.array(lin, dtype=np.float64)
+    linear_names = np.array([
+        'slope',
+        'intercept',
+        'r-value',
+        'p-value',
+        'stderr'
+    ], dtype=str)
+    # poly
+    poly, residuals, rank, singular_values, rcond = np.polyfit(x, y, deg=5, full=True, cov=False)
+    if len(residuals) > 0:
+        residuals_features = np.array([
+            residuals.min(),
+            residuals.max(),
+            residuals.mean(),
+        ], dtype=np.float64)
+    else:
+        residuals_features = np.array([0,0,0], dtype=np.float64)
+    residuals_names = np.array([
+        'poly_residuals_min',
+        'poly_residuals_max',
+        'poly_residuals_mean',
+    ], dtype=str)
+    poly_features = np.concatenate([poly[:-1], residuals_features])
+    poly_names = np.concatenate([
+        np.array(['poly_coeff_'+str(i) for i in range(len(poly)-1)], dtype=str),
+        residuals_names
+    ])
+    # gaussian
+#     try:
+#         popt, pcov = curve_fit(gauss_function, x, y, p0 = [1., 0., 1.], method='trf')
+#     except:
+#         popt, pcov = np.zeros(3, dtype=np.float64), np.zeros((3,3), dtype=np.float64)
+#     if np.isinf(pcov).any():
+#         gauss_std_err = np.zeros(3, dtype=np.float64)
+#     else:
+#         gauss_cov_diag = np.diag(pcov)
+#         gauss_std_err = np.sqrt(gauss_cov_diag)
+#     gaussian_features = np.concatenate([popt, gauss_std_err])
+#     gaussian_names = np.array([
+#         'gaussian_a',
+#         'gaussian_x0',
+#         'gaussian_sigma',
+#         'gaussian_a_err',
+#         'gaussian_x0_err',
+#         'gaussian_sigma_err',
+#     ], dtype=str)
+    # combine all lists
+    features = np.concatenate([peak_features, period_features, linear_features, poly_features])  # , gaussian_features])
+    feature_names = np.concatenate([peak_names, period_names, linear_names, poly_names])  # , gaussian_names])
+    return features, feature_names
 
+def process_group(group_data_: Tuple[int, pd.DataFrame]) -> pd.Series:
+    group_idx_, group_ = group_data_
+    threshold = group_['flux_err'].mean() + 2.5*group_['flux_err'].std()
+    filtered_group_ = group_[group_['flux_err'] <= threshold]
+    agg_features = pd.Series()
+    for passband_group_idx_, passband_group_ in group_.groupby('passband_group'):
+        x, y = passband_group_['scaled_mjd'].values, passband_group_['flux'].values
+        pb_features, pb_feature_names = process_passband_features(x,y)
+        agg_features = agg_features.append(
+            pd.Series(pb_features, index=pb_feature_names)\
+            .add_prefix(f'pbgroup_{passband_group_idx_}_')
+        )
+    return agg_features.rename(group_idx_)
+
+# preprocessing for custom functions on time series
+
+scale_time = lambda mjd_: pd.Series(minmax_scale(mjd_.values, feature_range=(-1,1)), index=mjd_.index)
+
+def preprocess_series(series_df_: pd.DataFrame) -> pd.DataFrame:
+    series_df = series_df_.copy()
+    series_df['passband_group'] = series_df_['passband'] //2
+    series_df['scaled_mjd'] = series_df_.groupby('object_id')['mjd'].apply(scale_time)
+    return series_df  # not dropping raw passband and raw mjd because RAM is cheap
+
+# main featurization functions combining all presently used features
 
 def featurize(df, df_meta, aggs, fcp, n_jobs=4):
     """
@@ -128,6 +247,20 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
     to capture periodicity
     https://www.kaggle.com/c/PLAsTiCC-2018/discussion/70346#415506
     """
+    
+    # new, custom series features
+    print("Generating custom features...")
+    preprocessed_df = preprocess_series(df)
+    gbo = preprocessed_df.groupby('object_id')
+    group_features_series = [process_group(g) for g in gbo]
+    series_features_df = pd.concat(group_features_series, axis=1)
+    series_features_df = series_features_df.transpose()  # will be joined with other features at the end
+    total_nans = series_features_df.isna().any().sum()
+    print("Custom features generated.")
+    print(f"WARNING: number of NaNs: {total_nans}")
+    
+    # features from the kernel
+    
     df = process_flux(df)
 
     agg_df = df.groupby('object_id').agg(aggs)
@@ -186,4 +319,6 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
     ).reset_index()
     result = agg_df_ts.merge(right=df_meta, how='left', on='object_id')
     result.fillna(0, inplace=True)
+    
+    result = result.join(series_features_df, on='object_id')  # newly added series features
     return result
