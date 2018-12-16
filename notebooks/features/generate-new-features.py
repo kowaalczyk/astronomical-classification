@@ -15,7 +15,7 @@ gc.enable()
 
 
 meta_path='../../data/raw/test_set_metadata.csv'  # unused right now
-test_dir_path='../../data/raw/test-splits/'
+test_dir_path='../../data/raw-test-splits/'
 output_path='../../data/features/test-3band-series-models-without-kernel-features-{}.csv'  # will be formatted
 
 

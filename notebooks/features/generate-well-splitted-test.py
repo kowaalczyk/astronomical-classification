@@ -14,7 +14,7 @@ chunk_size_one_100 = 453653105 // 100 + 1  # should take 100x (time after 1st it
 
 meta_path='../../data/raw/test_set_metadata.csv'
 test_path='../../data/raw/test_set.csv'
-output_path='../../data/raw/test-splits/'
+output_path='../../data/raw-test-splits/'
 id_colname='object_id'
 chunks=chunk_size_one_100  # alternatively: 5000000
 
@@ -35,5 +35,5 @@ if __name__ == '__main__':
         chunk_save_path = os.path.join(output_path, f'test-raw-{df[id_colname].iloc[0]}-{df[id_colname].iloc[-1]}.csv')
         df.to_csv(chunk_save_path, index=False)
     remain_save_path = os.path.join(output_path, f'test-raw-{remain_df[id_colname].iloc[0]}-{remain_df[id_colname].iloc[-1]}.csv')
-    remain_df.to_csv(chunk_save_path, index=False)
+    remain_df.to_csv(remain_save_path, index=False)
     print("Done!")

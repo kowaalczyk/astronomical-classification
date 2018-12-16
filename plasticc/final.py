@@ -76,6 +76,7 @@ def predict_test(
         feature_colnames: List[str],
         id_colname: str,
         clfs: List,  # list of classifiers
+        class_99_target_mean=0.12,  # class_99 will be scaled to match this mean value
         verbose: bool=False
 ) -> pd.DataFrame:
     if 'object_id' in feature_colnames:
@@ -91,6 +92,12 @@ def predict_test(
     print(f"Submission shape before grouping: {subm.shape}")
     subm_single = subm.groupby('object_id').mean()
     print(f"Submission shape after grouping: {subm_single.shape}")
+    # scale class_99 mean to match the desired value before normalizing other classes
+    class_99_mean = subm_single['class_99'].mean()
+    print(f"Class 99 mean probability before normalization: {class_99_mean}")
+    scaling_factor = class_99_target_mean / class_99_mean
+    subm_single['class_99'] = subm_single['class_99'] * scaling_factor
+    print(f"Class 99 mean probability after normalization: {subm_single['class_99'].mean()}")
     # normalization - all classes' probabilities should be equal to 1.0 for each object_id
     subm_sum = subm_single.sum(axis=1)
     for col in subm_single.columns:
@@ -98,6 +105,8 @@ def predict_test(
     max_err = np.max(np.abs(subm_single.sum(axis=1).values - 1.0))
     if max_err > 1e-15:
         print(f"Warning: high error in submission normalization: {max_err}")
+    # round all predictions to float32 so that CSV is twice smaller (Kaggle uses 32-bit accuracy to calculate score anyway)
+    subm_single = subm_single.round(decimals=8).astype(np.float32)
     # make sure index is typed correctly
     subm_single.index = subm_single.index.astype(np.int)
     print(f"Submission shape after postprocessing: {subm_single.shape}")
@@ -120,7 +129,7 @@ def predict_test(
     return subm_single
 
 
-def renyEntropy(alpha, vector):
+def reny_entropy(alpha, vector):
     if alpha < 0 or alpha == 1:
         raise Exception('alpha must not be 1 neither negative')
 
@@ -137,17 +146,16 @@ def predict_chunk(X, clfs, features, verbose=False):
     if verbose:
         for (clf, scor) in tqdm(clfs):  # display progressbar
             if preds_ is None:
-                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_)# * clf.score
+                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
             else:
-                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)# * clf.score
+                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
     else:
         for clf in clfs:
             if preds_ is None:
-                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_)# * clf.score
+                preds_ = clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
             else:
-                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)# * clf.score
+                preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
     preds_ = preds_ / len(clfs)
-    preds_ = MinMaxScaler().fit_transform(preds_)
 
     preds_99 = np.ones(preds_.shape[0])
     for i in range(preds_.shape[1]):
