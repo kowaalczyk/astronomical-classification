@@ -61,6 +61,8 @@ def process_meta(filename):
     meta_dict['hostgal_photoz_certain'] = np.multiply(
         meta_df['hostgal_photoz'].values,
         np.exp(meta_df['hostgal_photoz_err'].values))
+    
+    meta_dict['z_distance_approx'] = (meta_df['hostgal_photoz'] + 1)**2
 
     meta_df = pd.concat([meta_df, pd.DataFrame(meta_dict, index=meta_df.index)], axis=1)
     return meta_df
@@ -211,12 +213,12 @@ def process_passband_features(x: np.array, y: np.array) -> Tuple[np.array, np.ar
     feature_names = np.concatenate([peak_names, period_names, linear_names, poly_names])  # , gaussian_names])
     return features, feature_names
 
-def process_group(group_data_: Tuple[int, pd.DataFrame]) -> pd.Series:
+def process_group(group_data_: Tuple[int, pd.DataFrame], passband_colname: str='passband_group') -> pd.Series:
     group_idx_, group_ = group_data_
     threshold = group_['flux_err'].mean() + 2.5*group_['flux_err'].std()
     filtered_group_ = group_[group_['flux_err'] <= threshold]
     agg_features = pd.Series()
-    for passband_group_idx_, passband_group_ in group_.groupby('passband_group'):
+    for passband_group_idx_, passband_group_ in group_.groupby(passband_colname):
         x, y = passband_group_['scaled_mjd'].values, passband_group_['flux'].values
         pb_features, pb_feature_names = process_passband_features(x,y)
         agg_features = agg_features.append(
@@ -225,7 +227,48 @@ def process_group(group_data_: Tuple[int, pd.DataFrame]) -> pd.Series:
         )
     return agg_features.rename(group_idx_)
 
+def calculate_series_features(preprocessed_df: pd.DataFrame, passband_colname: str='passband_group') -> pd.DataFrame:
+    gbo = preprocessed_df.groupby('object_id')
+    group_features_series = [process_group(g) for g in gbo]
+    series_features_df = pd.concat(group_features_series, axis=1)
+    return series_features_df.transpose()  # will be joined with other features at the end
+    
+
 # preprocessing for custom functions on time series
+
+@jit(["int32(int32, float32)", "int64(int64, float64)"], nopython=True)
+def fix_passband(raw_passband: int, redshift: float):
+    """ 
+    Moving from raw passband r to passband p, if: 
+    redshift offset x high confidence min freq of r <= min freq of p, 
+    redshift offset x and high confidence max freq of r >= max freq of p
+    """
+    freq_mean = np.array([350.0, 500.0, 600.0, 750.0, 875.0, 1000.0])
+    freq_min = np.array([300.0, 400.0, 500.0, 650.0, 800.0, 950.0])
+    freq_max = np.array([400.0, 600.0, 700.0, 850.0, 950.0, 1050.0])
+    mean_with_offset = (1+redshift) * freq_mean[raw_passband]
+    for i in range(6):
+        if mean_with_offset > freq_min[i] and mean_with_offset < freq_max[i]:
+            return i
+    return np.nan
+
+@jit(["int32[:](float32[:,:])", "int64[:](float64[:,:])"])
+def fix_passband_vct(passband_and_redshift_):
+    result = np.zeros(passband_and_redshift_.shape[0]).astype(np.int)
+    for i in range(passband_and_redshift_.shape[0]):
+        result[i] = fix_passband(passband_and_redshift_[i][0].astype(np.int), passband_and_redshift_[i][1])
+    return result
+
+def calculate_fixed_passband_and_scaled_flux(series_df_: pd.DataFrame, redshift_series: pd.Series) -> pd.Series:
+    series_df = series_df_.copy()
+    series_df['redshift'] = series_df_['object_id'].map(redshift_series).values
+    series_df['fixed_passband'] = fix_passband_vct(series_df[['passband', 'redshift']].values).astype(np.int)
+    scaling_factor = (series_df['redshift'] + 1)**2
+    series_df['flux'] = series_df_['flux']*scaling_factor
+    series_df['flux_err'] = series_df_['flux_err']*scaling_factor
+    del series_df['redshift']
+    return series_df
+
 
 scale_time = lambda mjd_: pd.Series(minmax_scale(mjd_.values, feature_range=(-1,1)), index=mjd_.index)
 
@@ -248,17 +291,25 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
     https://www.kaggle.com/c/PLAsTiCC-2018/discussion/70346#415506
     """
     
+    # start by scaling time and fixing passband alignment
+    print("Preprocessing time...")
+    preprocessed_df = preprocess_series(df)
+    gc.collect()
+    print("Fixing passband alignment...")
+    redshift_series = pd.Series(df_meta['hostgal_photoz'].fillna(0).values, index=df_meta['object_id'])
+    preprocessed_df = calculate_fixed_passband_and_scaled_flux(preprocessed_df, redshift_series)
+    
     # new, custom series features
     print("Generating custom features...")
-    preprocessed_df = preprocess_series(df)
-    gbo = preprocessed_df.groupby('object_id')
-    group_features_series = [process_group(g) for g in gbo]
-    series_features_df = pd.concat(group_features_series, axis=1)
-    series_features_df = series_features_df.transpose()  # will be joined with other features at the end
-    total_nans = series_features_df.isna().any().sum()
+    series_features_df = calculate_series_features(preprocessed_df)
+#     print("Generating custom features for fixed passbands...")
+#     series_features_df_fpb = calculate_series_features(preprocessed_df, passband_colname='fixed_passband').add_suffix('_fpb')
     print("Custom features generated.")
-    print(f"WARNING: number of NaNs: {total_nans}")
-    
+    total_nans = series_features_df.isna().any().sum()
+    if total_nans > 0:
+        print(f"WARNING: number of NaNs: {total_nans}")
+        series_features_df.fillna(0, inplace=True)
+
     # features from the kernel
     
     df = process_flux(df)
@@ -269,15 +320,24 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
     agg_df = process_flux_agg(agg_df)  # new feature to play with tsfresh
 
     # Add more features with tsfresh:
-    agg_df_ts_flux_passband = extract_features(
-        df,
+#     agg_df_ts_flux_passband = extract_features(
+#         df,
+#         column_id='object_id',
+#         column_sort='mjd',
+#         column_kind='passband',
+#         column_value='flux',
+#         default_fc_parameters=fcp['flux_passband'], 
+#         n_jobs=n_jobs
+#     )
+    agg_df_ts_flux_passband_fpb = extract_features(
+        preprocessed_df,
         column_id='object_id',
         column_sort='mjd',
-        column_kind='passband',
+        column_kind='fixed_passband',
         column_value='flux',
         default_fc_parameters=fcp['flux_passband'], 
         n_jobs=n_jobs
-    )
+    ).add_suffix('_preprocessed')
     agg_df_ts_flux = extract_features(
         df,
         column_id='object_id',
@@ -306,19 +366,23 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
     agg_df_mjd['mjd_diff_det'] = agg_df_mjd['mjd__maximum'].values - agg_df_mjd['mjd__minimum'].values
     del agg_df_mjd['mjd__maximum'], agg_df_mjd['mjd__minimum']
 
-    agg_df_ts_flux_passband.index.rename('object_id', inplace=True)
+#     agg_df_ts_flux_passband.index.rename('object_id', inplace=True)
     agg_df_ts_flux.index.rename('object_id', inplace=True)
+    agg_df_ts_flux_passband_fpb.index.rename('object_id', inplace=True)
     agg_df_ts_flux_by_flux_ratio_sq.index.rename('object_id', inplace=True)
     agg_df_mjd.index.rename('object_id', inplace=True)
-    agg_df_ts = pd.concat(
-        [agg_df, agg_df_ts_flux_passband,
-         agg_df_ts_flux,
-         agg_df_ts_flux_by_flux_ratio_sq,
-         agg_df_mjd],
+    agg_df_ts = pd.concat([
+        agg_df, 
+#         agg_df_ts_flux_passband,
+        agg_df_ts_flux,
+        agg_df_ts_flux_passband_fpb,
+        agg_df_ts_flux_by_flux_ratio_sq,
+        agg_df_mjd],
         axis=1
     ).reset_index()
     result = agg_df_ts.merge(right=df_meta, how='left', on='object_id')
     result.fillna(0, inplace=True)
     
     result = result.join(series_features_df, on='object_id')  # newly added series features
+#     result = result.join(series_features_df_fpb, on='object_id')  # newly added series features
     return result

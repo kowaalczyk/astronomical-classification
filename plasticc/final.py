@@ -157,9 +157,9 @@ def predict_chunk(X, clfs, features, verbose=False):
                 preds_ += clf.predict_proba(X[features], num_iteration=clf.best_iteration_)
     preds_ = preds_ / len(clfs)
 
-    preds_99 = np.ones(preds_.shape[0])
+    preds_99 = np.ones(preds_.shape[0])    
     for i in range(preds_.shape[1]):
-        preds_99 *= (1 - preds_[:, i])
+       preds_99 *= (1 - preds_[:, i])
 
     # Create DataFrame from predictions
     preds_df_ = pd.DataFrame(preds_,
