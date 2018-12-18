@@ -14,7 +14,7 @@ import gc
 gc.enable()
 
 
-meta_path='../../data/raw/test_set_metadata.csv'  # unused right now
+meta_path='../../data/raw/test_set_metadata.csv'
 test_dir_path='../../data/raw-test-splits/'
 output_path='../../data/features-final/impoved-3band-series-models-without-kernel-features-{}.csv'  # will be formatted
 n_jobs=2
