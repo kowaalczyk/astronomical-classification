@@ -297,13 +297,13 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
     gc.collect()
     print("Fixing passband alignment...")
     redshift_series = pd.Series(df_meta['hostgal_photoz'].fillna(0).values, index=df_meta['object_id'])
-    preprocessed_df = calculate_fixed_passband_and_scaled_flux(preprocessed_df, redshift_series)
+    preprocessed_df_2 = calculate_fixed_passband_and_scaled_flux(preprocessed_df, redshift_series)
     
     # new, custom series features
     print("Generating custom features...")
     series_features_df = calculate_series_features(preprocessed_df)
-#     print("Generating custom features for fixed passbands...")
-#     series_features_df_fpb = calculate_series_features(preprocessed_df, passband_colname='fixed_passband').add_suffix('_fpb')
+    print("Generating custom features for fixed passbands...")
+    series_features_df_fpb = calculate_series_features(preprocessed_df_2, passband_colname='fixed_passband').add_suffix('_fpb')
     print("Custom features generated.")
     total_nans = series_features_df.isna().any().sum()
     if total_nans > 0:
@@ -320,17 +320,17 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
     agg_df = process_flux_agg(agg_df)  # new feature to play with tsfresh
 
     # Add more features with tsfresh:
-#     agg_df_ts_flux_passband = extract_features(
-#         df,
-#         column_id='object_id',
-#         column_sort='mjd',
-#         column_kind='passband',
-#         column_value='flux',
-#         default_fc_parameters=fcp['flux_passband'], 
-#         n_jobs=n_jobs
-#     )
+    agg_df_ts_flux_passband = extract_features(
+        df,
+        column_id='object_id',
+        column_sort='mjd',
+        column_kind='passband',
+        column_value='flux',
+        default_fc_parameters=fcp['flux_passband'], 
+        n_jobs=n_jobs
+    )
     agg_df_ts_flux_passband_fpb = extract_features(
-        preprocessed_df,
+        preprocessed_df_2,
         column_id='object_id',
         column_sort='mjd',
         column_kind='fixed_passband',
@@ -366,14 +366,14 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
     agg_df_mjd['mjd_diff_det'] = agg_df_mjd['mjd__maximum'].values - agg_df_mjd['mjd__minimum'].values
     del agg_df_mjd['mjd__maximum'], agg_df_mjd['mjd__minimum']
 
-#     agg_df_ts_flux_passband.index.rename('object_id', inplace=True)
+    agg_df_ts_flux_passband.index.rename('object_id', inplace=True)
     agg_df_ts_flux.index.rename('object_id', inplace=True)
     agg_df_ts_flux_passband_fpb.index.rename('object_id', inplace=True)
     agg_df_ts_flux_by_flux_ratio_sq.index.rename('object_id', inplace=True)
     agg_df_mjd.index.rename('object_id', inplace=True)
     agg_df_ts = pd.concat([
         agg_df, 
-#         agg_df_ts_flux_passband,
+        agg_df_ts_flux_passband,
         agg_df_ts_flux,
         agg_df_ts_flux_passband_fpb,
         agg_df_ts_flux_by_flux_ratio_sq,
@@ -384,5 +384,5 @@ def featurize(df, df_meta, aggs, fcp, n_jobs=4):
     result.fillna(0, inplace=True)
     
     result = result.join(series_features_df, on='object_id')  # newly added series features
-#     result = result.join(series_features_df_fpb, on='object_id')  # newly added series features
+    result = result.join(series_features_df_fpb, on='object_id')  # newly added series features
     return result
