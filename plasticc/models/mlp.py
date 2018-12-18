@@ -1,17 +1,35 @@
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation, Conv1D, BatchNormalization
-from keras.optimizers import Adadelta
+from keras.optimizers import Adadelta, Adam
+from keras import regularizers
 import keras.backend as K
 from sklearn.model_selection import StratifiedKFold
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from imblearn.over_sampling import SMOTE
+import tensorflow as tf
 
 from plasticc.models.utils import multi_weighted_logloss as mwl_common
 
 
 def multi_weighted_logloss(y_true, y_pred):  # NOTE: weights must be sorted, y_true and y_pred - one-hot encoded
+#     class_weights = tf.constant([1., 2., 1., 1., 1., 1., 1., 2., 1., 1., 1., 1., 1., 1.])  # from kaggle
+#     weights = tf.reduce_sum(class_weights * y_true, axis=1)
+    
+#     # based on tensorflow crossentropy impl:
+#     # scale preds so that the class probas of each sample sum to 1
+#     y_pred /= tf.reduce_sum(y_pred, -1, True)
+#     # manual computation of crossentropy
+#     _epsilon = tf.convert_to_tensor(1e-15, dtype=y_pred.dtype.base_dtype)
+#     y_pred = tf.clip_by_value(y_pred, _epsilon, 1. - _epsilon)
+#     unweighted_losses = tf.reduce_sum(y_true * tf.log(y_pred), axis=-1)
+    
+#     # apply weights after calculating crossentropy
+#     weighted_losses = unweighted_losses * weights
+#     loss = tf.reduce_mean(weighted_losses)
+#     return loss
+
     class_weights = K.variable([1., 2., 1., 1., 1., 1., 1., 2., 1., 1., 1., 1., 1., 1.])  # from kaggle
     # Normalize rows and limit y_preds to 1e-15, 1-1e-15
     y_pred = K.clip(x=y_pred, min_value=1e-15, max_value=1 - 1e-15)
@@ -20,7 +38,7 @@ def multi_weighted_logloss(y_true, y_pred):  # NOTE: weights must be sorted, y_t
     # Get the log for ones, .values is used to drop the index of DataFrames
     # Exclude class 99 for now, since there is no class99 in the training set
     # we gave a special process for that class
-    y_log_ones = K.sum(y_true * y_p_log, axis=0)
+    y_log_ones = K.sum(y_true * y_p_log, axis=-1)
     # Get the number of positives for each class
     nb_pos = K.sum(y_true, axis=0) + K.epsilon()  # prevent nans in division later
     # Weight average and divide by the number of positives
@@ -41,14 +59,19 @@ def build_classifier(
     layer_dim_interval = (hidden_layer_dim - num_classes) // num_hidden_layers
     for i in range(num_hidden_layers):
         if i == 0:
-            model.add(Dense(hidden_layer_dim, activation='tanh', input_dim=input_dim))
+            model.add(Dense(
+                hidden_layer_dim, activation='tanh', 
+                input_dim=input_dim, 
+#                 activity_regularizer=regularizers.l1(0.01)
+            ))
         else:
             model.add(Dense(hidden_layer_dim - i*layer_dim_interval, activation='tanh'))
         model.add(BatchNormalization())
     model.add(Dense(num_classes, activation='softmax'))
     model.compile(
         loss=multi_weighted_logloss,
-        optimizer=Adadelta(lr=0.25, rho=0.95, epsilon=None, decay=0.0),
+#         loss='categorical_crossentropy',
+        optimizer=Adam(lr=optimizer_lr),  # Adadelta(lr=0.25, rho=0.95, epsilon=None, decay=0.0),
         metrics=['categorical_accuracy', multi_weighted_logloss]
     )
     return model
@@ -103,7 +126,7 @@ def mlp_modeling_cross_validation(
                 val_y_ohe.values.astype(np.bool)
             ),
             shuffle=True, 
-            sample_weight=norm_sample_weights.astype(np.float32),
+#             sample_weight=norm_sample_weights.astype(np.float32),
             **fit_params
         )
         clfs.append(clf)
