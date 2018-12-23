@@ -1,5 +1,8 @@
 # astronomical-classification
-Working on submission for PLAsTiCC Astronomical Classification
+201th place (top 19%) submission for [PLAsTiCC Astronomical Classification Kaggle Competition](https://www.kaggle.com/c/PLAsTiCC-2018), team **MIMUW E L I T E**.  
+
+## Submission reconstruction  
+All of our major submissions were generated in scripts and notebooks located inside `notebooks/submissions/`. Make sure to read the comments and messages carefully when executing these notebooks.  
 
 ## Project structure  
 ```
